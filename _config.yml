@@ -1,35 +1,28 @@
-
-# Site settings
-title: Project-Gaia
-email:
-description: > # this means to ignore newlines until "baseurl:"
-  Write an awesome description for your new site here. You can edit this
-  line in _config.yml. It will appear in your document head meta (for
-  Google search results) and in your feed.xml site description.
-baseurl: "" # the subpath of your site, e.g. /blog/
-url: "" # the base hostname & protocol for your site
-
-# User setting
-owner:
-email:
-facebook_username:
-twitter_username:
-github_username:
-address:
-  - line:
-  - line:
-  # Feel free to add more lines here 
-telephone:
-copyright:
-
-# API settings
-google_api_key:
+title: Jekyll Vision Casper Theme
+email: hugo.colombo23@gmail.com
+author:
+  picture: http://site.hugocarreira.me/assets/img/compressed/hugo.jpg #URL FORMAT
+  name: Hugo Carreira
+  location: Rio de Janeiro - Brazil
+  description: "19 years old, studying computer science"  
+description: only my simple vision of casper theme
+baseurl: "/"
+url: https://hugocarreira.github.io/jekyll-vision-casper-theme
+twitter_username: hugocolombo23
+github_username:  hugocarreira
+github_url: https://hugocarreira.github.io/jekyll-vision-casper-theme/
 
 # Build settings
-gems: [jekyll-paginate]
-
-markdown: kramdown
-# toc_levels: 1..2
-
-
-theme: jekyll-theme-midnight
+permalink: :title
+paginate: 1
+paginate_path: "page:num"
+kramdown:
+  input: GFM
+  hard_wrap: false
+highlighter: rouge
+gems:
+  - jekyll-feed
+  - jekyll-paginate
+exclude:
+  - Gemfile
+  - Gemfile.lock
