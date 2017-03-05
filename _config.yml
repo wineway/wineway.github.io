@@ -10,7 +10,7 @@ baseurl: "/"
 url: https://hugocarreira.github.io/jekyll-vision-casper-theme
 twitter_username: hugocolombo23
 github_username:  hugocarreira
-github_url: https://wineway.github.io/
+github_url: https://hugocarreira.github.io/jekyll-vision-casper-theme/
 
 # Build settings
 permalink: :title
