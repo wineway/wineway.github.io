@@ -3,7 +3,7 @@ layout: post
 title:  "[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 2: TensorFlow Ops"
 date:   2013-3-5 19:30:27 -0800
 author: wineway
-description: "斯坦福Lecture note 2: TensorFlow Ops"
+description: "Tensorflow操作"
 ---
 [“CS 20SI: TensorFlow for Deep Learning Research”](cs20si.stanford.edu) Prepared by [Chip Huyen](huyenn@stanford.edu)
 Reviewed by Danijar Hafner
