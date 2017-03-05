@@ -1,3 +1,0 @@
-@@ -1,37 +0,0 @@
-#目录
-[[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 2: TensorFlow Ops](wineway.github.io/[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 2: TensorFlow Ops)
