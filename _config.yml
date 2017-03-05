@@ -11,7 +11,7 @@ url: https://hugocarreira.github.io/jekyll-vision-casper-theme
 twitter_username: wangyuweihx
 github_username:  wineway
 github_url: https://wineway.github.io/
-markdown:  maruku
+markdown: kramdown
 # Build settings
 permalink: :title
 paginate: 1
