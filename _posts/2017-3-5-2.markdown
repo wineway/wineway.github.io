@@ -5,19 +5,19 @@ date:   2013-3-5 19:30:27 -0800
 author: wineway
 description: "tf.session&tf.graph简介"
 ---
-#[翻译]什么是tensorflow的session
+# [翻译]什么是tensorflow的session
 
 [原文:danijar博客文章what is a tensorflow session](http://danijar.com/what-is-a-tensorflow-session/)
 
-###很多人对于`tf.Graph`和`tf.Session`的用法有困惑，很简单：
+### 很多人对于`tf.Graph`和`tf.Session`的用法有困惑，很简单：
 
 - graph只是定义了计算，他本身不计算任何东西，他不保存任何值，他只是定义了你用代码所规定的操作
 
 - session允许计算图或者图的一部分，他为这个分配资源并且保存中间结果的值和变量
 
-###让我们看一个例子：
+### 让我们看一个例子：
 
-##定义图
+## 定义图
 
 我们定义一个`graph`通过一个变量和三个操作：变量总是返回他的当前值，`initialize` 初始化变量值为42，`assign` 给变量赋新值为13，
 
@@ -28,9 +28,9 @@ description: "tf.session&tf.graph简介"
 	    initialize = tf.initialize_all_variables()
 	    assign = variable.assign(13)
 ```
-##在Session中执行计算
+## 在Session中执行计算
 
-###我们给`graph`创建一个`session`来运行图中定义的三个操作中的任意一个，`session`会分配内存去存储变量的当前值
+### 我们给`graph`创建一个`session`来运行图中定义的三个操作中的任意一个，`session`会分配内存去存储变量的当前值
 
 ```python
 with tf.Session(graph=graph) as sess:
@@ -39,7 +39,7 @@ with tf.Session(graph=graph) as sess:
   print(sess.run(variable))
 # Output: 13
 ```
-###如你所见，变量的值仅在一个`session`中有效，如果我们尝试在`session`结束后查询变量值，tensorflow将会报错，因为变量在此时没有初始化
+### 如你所见，变量的值仅在一个`session`中有效，如果我们尝试在`session`结束后查询变量值，tensorflow将会报错，因为变量在此时没有初始化
 
 
 ```python
@@ -47,7 +47,7 @@ with tf.Session(graph=graph) as sess:
   print(sess.run(variable))
 # Error: Attempting to use uninitialized value foo
 ```
-###当然一个graph也能使用多个session，我们不得不再一次初始化变量，新session的值将会完全的独立于之前的session的
+### 当然一个graph也能使用多个session，我们不得不再一次初始化变量，新session的值将会完全的独立于之前的session的
 
 ```python
 with tf.Session(graph=graph) as sess:
@@ -56,7 +56,7 @@ with tf.Session(graph=graph) as sess:
 # Output: 42
 ```
 
-##评论翻译
+## 评论翻译
 
 - ```tf.initialize_all_variables()``` 用在代码块的开头已经被取消。
      作者回答：感谢指出，我将会在tensorflow 1.0发布后更新博文（然而tf1.0已经发布好久了）
