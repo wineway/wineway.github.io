@@ -1,16 +1,16 @@
 title: 烫烫烫烫烫烫烫烫
-email: wangyuweihx@protonmail.ch
+email: hugo.colombo23@gmail.com
 author:
   picture: http://site.hugocarreira.me/assets/img/compressed/hugo.jpg #URL FORMAT
-  name: wineway
-  location: jiangsu - china
-  description: "studying CV"  
+  name: Hugo Carreira
+  location: Rio de Janeiro - Brazil
+  description: "19 years old, studying computer science"  
 description: 翻译与学习笔记
 baseurl: "/"
-url: https://hugocarreira.github.io/jekyll-vision-casper-theme/
+url: https://hugocarreira.github.io/jekyll-vision-casper-theme
 twitter_username: hugocolombo23
 github_username:  hugocarreira
-github_url: https://wineway.github.io/#
+github_url: https://hugocarreira.github.io/jekyll-vision-casper-theme/
 
 # Build settings
 permalink: :title
