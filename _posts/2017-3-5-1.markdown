@@ -106,6 +106,7 @@ tf.matmul(tf.reshape(a, shape=[1, 2]), tf.reshape(b, shape=[2, 1])) # >> [[18]] 
 tf.mod(a, b) # >> [1 0]
 ```
 py的操作列表，来源：Fundamentals of Deep Learning 的作者
+
 |种类|例子|
 |:------|:---------|
 |类型拓广的数学操作|add,sub,div..|
