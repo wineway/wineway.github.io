@@ -10,7 +10,7 @@ baseurl: "/"
 url: https://wineway.github.io/
 twitter_username: wangyuweihx
 github_username:  wineway
-github_url: /wineway.github.io
+github_url: https://wineway.github.io
 # Build settings
 permalink: :title
 paginate: 1
