@@ -12,7 +12,7 @@ Reviewed by Danijar Hafner
 个人翻译，部分内容较简略，建议参考原note阅读
 
 
-##1. tensorboard使用
+## 1. tensorboard使用
 示例代码：
 ```python
 import  tensorflow  as  tf a  =  tf.constant ( 2)
@@ -36,7 +36,7 @@ b  =  tf.constant([ 3 ,   6 ],  name = "b")
 x  =  tf.add( a ,  b ,  name = "add")
 ```
 
-##2. constant类型
+## 2. constant类型
 示例：
 ```python
 tf.constant( value ,  dtype = None ,  shape = None ,  name = 'Const' ,  verify_shape = False)
@@ -91,7 +91,7 @@ tf.multinomial(logits, num_samples, seed=None, name=None)
 tf.random_gamma(shape, alpha, beta=None, dtype=tf.float32, seed=None, name=None)
 ```
 
-##3. 数学操作
+## 3. 数学操作
 
 [访问tf官方api文档了解更多](https://www.tensorflow.org/api_docs/python/math_ops/arithmetic_operators  )
 
@@ -118,7 +118,7 @@ py的操作列表，来源：Fundamentals of Deep Learning 的作者
 |队列和同步操作|enqueue,dequeue,mutexAcquire(互斥锁),mutexRelease(锁释放)..|
 |控制流操作|merge,switch,enter,leave,nextIteration|
 
-##4. 数据类型
+## 4. 数据类型
 ```python
 t_0  =   19   # Treated as a 0-d tensor, or "scalar" tf . zeros_like ( t_0 )   # ==> 0
 tf.ones_like ( t_0 )   # ==> 1
@@ -142,7 +142,7 @@ tf自身数据类型：
 
 总之，尽可能使用tf类型数据
 
-##5. 变量
+## 5. 变量
 
 - constant就是constant，variable可以被赋值和改变
 - constant值被存储在graph中，然而variable被分开存储，并且可能存活在参数服务器(parameter server)上,所以constant是内存expensive的，每次加载的时候都去检查graph定义和存储，简单的输出原始缓存。
@@ -301,7 +301,7 @@ U  =  tf.Variable( W  *   2)
 ```
 请确保W被使用之前使用`initialized_value()`初始化
 
-##6. InteractiveSession
+## 6. InteractiveSession
 
 IteractiveSession和session的区别是IteractiveSession会把自己作为默认Session，使用`run()`等方法时不用指定调用特定session，在交互式shell或者ipython notebooks中是很方便的，但是在需要多个session的场景下会是易混淆的
 
@@ -314,7 +314,7 @@ c  =  a  *  b
 print( c.eval ()) sess . close ()
 #tf.InteractiveSession.close() closes an InteractiveSession.
 ```
-##7. 控制依赖
+## 7. 控制依赖
 使用`tf.Graph.control_dependencies(control_inputs)`控制多个节点顺序：
 
 ```
@@ -324,7 +324,7 @@ with  g.control_dependencies([ a ,  b ,  c ]):
  d  =   ...
  e  =  ...
 ```
-##8. 占位符和feed_dict
+## 8. 占位符和feed_dict
 通过占位符建立图，在运行时使用feed_dict喂给数据：
 
 定义一个占位符：
@@ -376,7 +376,7 @@ b = tf.mul(a, 3)
 # Run the session, passing in `replace_dict` as the value to `feed_dict` sess.run(b, feed_dict=replace_dict) # returns 45
 ```
 
-##9. 延迟加载的陷阱
+## 9. 延迟加载的陷阱
 
 延时加载是指，推迟变量的声明或者定义直到加载它的时候。
 正常载入，通过建立z节点：
