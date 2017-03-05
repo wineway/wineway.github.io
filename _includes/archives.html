@@ -1,0 +1,53 @@
+  <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="page-header" id="archives">
+                            <h3>Archives</h3>
+                        </div>
+
+                        <ul class="ant-timeline" id="archivelist">
+
+
+                            {% comment %} Stickie list {% endcomment %}
+                            {% for post in site.posts %}
+
+                            {% if post.stickie != true %}
+                            {% continue %}
+                            {% endif %}
+
+
+                            <li class="ant-timeline-item">
+                                <div class="ant-timeline-item-content">
+                                    <span class="text-danger">{{ post.date | date: "%Y-%m-%d" }} </span>
+                                    <div class="d-flex align-items-center post-title">
+                                     <a class="post-link text-danger h6 text-danger" href="{{site.url}}{{site.baseurl}}{{ post.url}}">{{ post.title }}</a>
+                                    </div>
+                                </div>
+                            </li>
+                            {% endfor %}
+
+
+                            {% comment %} Normal post list {% endcomment %}
+                            {% for post in site.posts %}
+
+                            {% comment %} If it already showed in stickie list {% endcomment %}
+                            {% if post.stickie == true %}
+                            {% continue %}
+                            {% endif %}
+
+                            <li class="ant-timeline-item">
+                                <div class="ant-timeline-item-content">
+                                    <span class="text-primary">{{ post.date | date: "%Y-%m-%d" }} </span>
+                                    <div class="d-flex align-items-center post-title">
+                                        <a class="post-link h6 text-primary" href="{{site.url}}{{site.baseurl}}{{ post.url}}">{{ post.title }}</a>
+                                     </div>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+            </div>
+        </div>
+        <!-- /#page-content-wrapper -->
