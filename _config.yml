@@ -31,3 +31,5 @@ gems: [jekyll-paginate]
 markdown: kramdown
 # toc_levels: 1..2
 
+
+theme: jekyll-theme-midnight
