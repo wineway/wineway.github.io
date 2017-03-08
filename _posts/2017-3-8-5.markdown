@@ -1,0 +1,150 @@
+---
+layout: post
+title:  "[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 5: How to manage your experiments in TensorFlow"
+date:   2017-3-8 19:30:27 -0800
+author: wineway
+description: "如何管理你在tensorflow的实验过程"
+---
+[“CS 20SI: TensorFlow for Deep Learning Research”](cs20si.stanford.edu) Prepared by [Chip Huyen]( huyenn@stanford.edu )
+Reviewed by Danijar Hafner
+
+这节课我们将会学习使用tensorflow提供给我们的用于记录实验过程的工具,今天课程的主题概括为:tf.train.Saver()类,tf的随机种子,numpy的随机域,并且可视化我们的训练程序
+
+## tf.train.Saver()
+
+一个好的在数步之后的实例用于周期性保存参数以便于我们可以从记录点重载我们的模型,tf.train.Saver()类允许我们这样做通过吧图的变量保存在二进制文件中:
+```python
+tf.train.Saver.save(sess, save_path, global_step = None, latest_filename = None,
+meta_graph_suffix = 'meta', write_meta_graph = True, write_state = True)
+```
+例如我们想每1000步保存一次图变量我们可以这样:
+```python
+# define model
+# create a saver object
+saver = tf.train.Saver()
+# launch a session to compute the graph
+with tf.Session() as sess:
+# actual training loop
+for step in range (training_steps ):
+  sess.run([ optimizer ])
+  if (step + 1) % 1000 == 0:
+    saver.save(sess , 'checkpoint_directory/model_name' ,
+    global_step = model . global_step)
+```
+在tensorflow语言中,你保存图变量的步骤叫做checkpoint,添加保存记录步骤的变量叫global_step是很有用的,他也是个非常常见的变量,为了防止optimizer优化他,我们把他的trainable设置为False.
+
+我们需要传递global_step作为optimizer参数
+
+把session的变量保存在checkpoints文件夹中,名称为 model-name-global-step 我们使用:
+`saver.save(sess,'checkpoints/skip-gram',global_step=model.global_step)`
+
+所以我们为`word2vec`训练循环现在是这个样子:
+```python
+self.global_step-tf.Variable(0, dtype=tf.int32, trainable=False, name-`global_step`)
+
+saver= tf.train.Saver()
+  with tf.Session as sess:
+    sess.run(tf.global_variables_initializer())
+
+    average_loss = 0.0
+    writer = tf.summary.FileWriter('./improved_graph',sess.graph)
+    for index in xrange(num_train_steps):
+      batch = batch_gen.next()
+      loss_batch,_ = sess.run([model.loss,model.optimizer], feed_dict = {model.center_word:batch[0],model.target_words:batch[1]})
+
+      average_loss += loss_batch
+      if (index + 1)%1000 == 0
+        saver.save(sess,'checkpoints/skip-gram',global_step=model.global_step)
+```
+checkpoints 文件自动保存最新的checkpoints到文件夹路径
+
+默认的,saver.save()保存所有图的变量,并且这么做是被推荐的,然而你也可以在创建它的时候传递给他一个变量列表或者字典
+
+```python
+v1 = tf.Variable(...,name='v1')
+v2 = tf.Variable(...,name='v2')
+#传递一个字典
+saver = tf.train.Saver({'v1':v1,'v2':v2})
+#传递一个列表
+saver = tf.train.Saver([v1,v2)])
+#传递一个列表相当于传递一个带有节点名字的字典
+saver= tf.train.Saver({v.op.name: v for v in [v1,v2]})
+```
+需要注意的是节点只曹村变量并不把全部的图保存起来,所以我们依然要自己创建图,然后载入变量,checkpoints根据变量的名字传递张量
+
+人们通常不止保存最终迭代参数结果,也保存目前为止模型计算的最佳结果的参数
+
+## tf.summary
+
+我们已经使用matplotlib去可视化我们的loss和accuracy, 虽然很酷但是不是必要的,因为tensorboard提供了可视化工具可以可视化我们的训练中的summary数据,亦可以把他们可视化为点,直方图,甚至是图片,所以我们有一个新的namescope在我们的途中去保存全部的summary节点.
+```python
+def _create_summaries(self):
+  with tf.name_scope("summaries")
+    tf.summary.scalar("loss",self.loss)
+    tf.summary.scalar("accuracy", self.accuracy)
+    tf.summary.histogram("histogram_loss",self.loss)
+    #merge into one op make it easier to mannage
+    self.summary_op = tf.summary.merge_all()
+```
+
+因为这是个节点,所以你不得不用session来计算:
+`loss_batch,_,summary = sess.run([model.loss,model.optimizer,model,summary_op], feed_dict=feed_dict)`
+
+建立好summary,你需要把summary写到文件用与我们创造去可视化图的writer`writer.add_summary,global_step=step)`
+
+如果你把summaries保存在图的不同子文件夹中,你可以使用tensorboard比较他们.
+你也可以使用python脚本去自动命名你保存的每个实验的graph/plots
+
+你也可以通过图可视化这个统计数据,通过tf.summary.image()
+`tf.summary.image(name,tensor,max_outputs=3,collections=None)`
+
+## 控制随机化
+
+tensorflow不允许你通过numpy的方式获取random state,但是你可以通过随机化获得稳定结果通过以下步骤:
+`my_var = tf.Variable(tf.truncated_normal((-1.0,1.0),stddev=0.1,seed=0))`
+
+注意,session记录随机域,每个新session将会重启随机域
+
+```python
+c=tf.ramdom_uniform([],-10,10,seed=2)
+with tf.session() as sess:
+  print sess.run(c) #3.57..
+  print sess.run(c) #-5.97..
+
+```
+******
+```python
+#c=
+
+with tf.session as sess:
+  print sess.run(c) #3.57..
+with tf.session as sess:
+  print sess.run(c)#3.57
+```
+
+使用随机种子`tf.Graph.seed`
+`tf.set_random_seed(seed)`
+如果你不关心图中每个节点的随机化,仅仅想要赋值其他图的结果,你可以使用tf.set_random_seed代替,设置当前tf的random seed仅仅影响当前的默认图全图
+
+## 使用tensorflow读取数据
+
+有两个主要的方式去加载数据还给tf的图,一种是通过feed_dict,另一种是通过readers允许我们直接从文件中读取张量,当然你也可以使用constant加载你的数据,但是这会使你的图变得很臃肿和un-runnale
+
+feed_dict首先从系统内存传递数据给客户端,然后客户端传递给工作进程,这将会导致数据家在缓慢,特别是你的客户端在不同于你的工作进程机时,tf有reader允许你直接把数据加载到工作进程
+
+这个提升将不会是可以注意到的,当我们没有工作在分布式系统或者我们的数据集是很小的时候.
+
+```python
+tf.Textlinereader
+#逐行输出eg:文本文档,csv文件
+tf.FixlengthRecordReader
+#输出全部文件,如果全部文件有相同的固定大小
+tf.WholeFileReader
+#输出全部文件常亮
+tf.TFRecordReader
+#读取TF自己的二进制格式的样本
+tf.ReaderBase
+#创建自己的reader
+```
+******
+未完待续(作者没写完
