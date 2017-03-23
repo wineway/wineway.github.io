@@ -1,9 +1,11 @@
 ---
-layout: post
-title:  "[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 2: TensorFlow Ops"
-date:   2013-3-5 19:30:27 -0800
-author: wineway
-description: "Tensorflow操作"
+layout:     post
+title:      "[翻译]斯坦福CS 20SI:基于Tensorflow的深度学习研究课程笔记,Lecture note 2: TensorFlow Ops"
+author:     wineway
+tags: 		斯坦福CS20SI tensorflow 课程笔记
+subtitle:   Tensorflow操作
+category:  project1
+visualworkflow: true
 ---
 [“CS 20SI: TensorFlow for Deep Learning Research”](cs20si.stanford.edu) Prepared by [Chip Huyen](huyenn@stanford.edu)
 Reviewed by Danijar Hafner
@@ -25,14 +27,14 @@ with  tf.Session ()   as  sess: print  sess.run ( x)
 ```python
 writer  =  tf.summary.FileWriter( logs_dir ,  sess . graph)
 ```
-将你的event存储在logs_dir中，然后在terminal中输入`tensorboard --logdir=logs_dir` 打开tensorboard 
+将你的event存储在logs_dir中，然后在terminal中输入`tensorboard --logdir=logs_dir` 打开tensorboard
 
 ![这里写图片描述](http://img.blog.csdn.net/20170304165458565?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvd2FuZ3l1d2VpaHg=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
 
 a,b,x为代码中使用的变量名，tensorboard中使用`name=#` 给节点命名，例如：
 ```python
-a  =  tf.constant([ 2 ,   2 ],  name = "a") 
-b  =  tf.constant([ 3 ,   6 ],  name = "b") 
+a  =  tf.constant([ 2 ,   2 ],  name = "a")
+b  =  tf.constant([ 3 ,   6 ],  name = "b")
 x  =  tf.add( a ,  b ,  name = "add")
 ```
 
@@ -86,7 +88,7 @@ tf.random_shuffle(value, seed=None, name=None)
 
 tf.random_crop(value, size, seed=None, name=None)
 
-tf.multinomial(logits, num_samples, seed=None, name=None) 
+tf.multinomial(logits, num_samples, seed=None, name=None)
 
 tf.random_gamma(shape, alpha, beta=None, dtype=tf.float32, seed=None, name=None)
 ```
@@ -246,7 +248,7 @@ sess.run( W.initializer) print  W.eval () # >> 10
 详情见[这里](http://blog.csdn.net/wangyuweihx/article/details/60330506 )
 
 ```
-W  =  tf.Variable( 10 ) 
+W  =  tf.Variable( 10 )
 assign_op = W.assign ( 100 ) with  tf.Session ()   as  sess:
 sess.run( assign_op) print  W.eval () # >> 100
 ```
@@ -265,9 +267,9 @@ a  =  tf.Variable( 2 ,  name = "scalar" )
 # assign a * 2 to a and call that op a_times_two
 a_times_two  =  a.assign( a  *   2)
 init  =  tf . global_variables_initializer ()
-with  tf.Session()   as  sess: 
+with  tf.Session()   as  sess:
 sess.run( init)
-# have to initialize a, because a_times_two op depends on the value of a 
+# have to initialize a, because a_times_two op depends on the value of a
 sess.run( a_times_two )   # >> 4
 sess.run( a_times_two )   # >> 8
 sess.run( a_times_two )   # >> 16
@@ -296,7 +298,7 @@ sess1.close() sess2.close()
 
 ```
 # W is a random 700 x 100 tensor
-W  =  tf.Variable( tf.truncated_normal ([ 700 ,   10 ])) 
+W  =  tf.Variable( tf.truncated_normal ([ 700 ,   10 ]))
 U  =  tf.Variable( W  *   2)
 ```
 请确保W被使用之前使用`initialized_value()`初始化
@@ -306,7 +308,7 @@ U  =  tf.Variable( W  *   2)
 IteractiveSession和session的区别是IteractiveSession会把自己作为默认Session，使用`run()`等方法时不用指定调用特定session，在交互式shell或者ipython notebooks中是很方便的，但是在需要多个session的场景下会是易混淆的
 
 ```
-sess  =  tf.InteractiveSession() 
+sess  =  tf.InteractiveSession()
 a  =  tf.constant( 5.0)
 b  =  tf.constant( 6.0)
 c  =  a  *  b
@@ -318,9 +320,9 @@ print( c.eval ()) sess . close ()
 使用`tf.Graph.control_dependencies(control_inputs)`控制多个节点顺序：
 
 ```
-# your graph g have 5 ops: a, b, c, d, e 
+# your graph g have 5 ops: a, b, c, d, e
 with  g.control_dependencies([ a ,  b ,  c ]):
- # `d` and `e` will only run after `a`, `b`, and `c` have executed. 
+ # `d` and `e` will only run after `a`, `b`, and `c` have executed.
  d  =   ...
  e  =  ...
 ```
@@ -343,7 +345,7 @@ b  =  tf.constant([ 5 ,   5 ,   5 ],  tf.float32)
 # use the placeholder as you would a constant or a variable
 c  =  a  +  b  # Short for tf.add(a, b)
 If  we  try  to fetch c ,  we will run  into  error.
-with  tf.Session()   as  sess: 
+with  tf.Session()   as  sess:
 print( sess.run( c ))
 >>   NameError
 ```
@@ -359,7 +361,7 @@ print( sess.run( c ,   { a :  [ 1 ,   2 ,   3 ]}))
 
 ```
 with  tf.Session()   as  sess:
-for  a_value  in  list_of_a_values: 
+for  a_value  in  list_of_a_values:
   print( sess.run( c ,   { a : a_value }))
 ```
 你也可以给不是占位符的张量喂值，检查一个张量是否是可以被喂值得：

@@ -1,43 +1,160 @@
-title: 烫烫烫烫烫烫烫烫烫烫烫烫
-email: wangyuweihx@gmail.com
-author:
-  picture: http://i1.piimg.com/1949/3373f861bd9f6555.png #URL FORMAT
-  name: wineway
-  location: Jiangsu - China
-  description: "studying CV"  
-description: 学习笔记与翻译
-baseurl: "/"
-url: https://hugocarreira.github.io/jekyll-vision-casper-theme
-twitter_username: wangyuweihx
-github_username:  wineway
-github_url: https://wineway.github.io/
+# Site settings
+title: 烫烫烫烫烫烫烫烫
+description: "学习笔记和翻译"
+url: "https://wineway.github.io"
+
+
+
+
+# Secondary Parameters
+baseurl: "/project-pages"
+header-img: img/home-bg.jpg
+headercolor: "#FFFFFF"
+logo: /project-pages/img/logos/Project-Pages-New-Logo-Inverted.png
+
+# Tertiary Parameters
+#github_username:  projectpages
+github_username: wineway
+#project_repository: project-pages
+project_repository: wineway
+disqus_shortname: project-pages
+g-analytics: UA-75881392-1
+altmetric: true
 
 # Build settings
-permalink: :title
-paginate: 1
-paginate_path: "page:num"
-kramdown:
-  input: GFM
-  hard_wrap: false
+gems: [jekyll-paginate]
+markdown: kramdown
 highlighter: rouge
-gems:
-  - jekyll-feed
-  - jekyll-paginate
-exclude:
-  - Gemfile
-  - Gemfile.lock
-  
-markdown:       kramdown
-highlighter:    rouge
-kramdown:
-  input:                     GFM
-  auto_ids:                  true
-  footnote_nr:               1
-  entity_output:             as_char
-  toc_levels:                1..6
-  smart_quotes:              lsquo,rsquo,ldquo,rdquo
-  enable_coderay:            false
-  hard_wrap:                 false
-  syntax_highlighter:        rouge
-  transliterated_header_ids: true
-  footnote_backlink:         "&#8617;&#xfe0e;"
+permalink: pretty
+paginate: 10
+exclude: ["less","node_modules","Gruntfile.js","package.json","README.md"]
+
+# Jekyll Settings
+
+defaults:
+  -
+    scope:
+      path: "projects"
+      type: "pages"
+    values:
+      layout: "project"
+      header-img: "img/home-bg.jpg"
+
+# Prose Settings
+prose:
+  ignore: ['feed.xml', '/stl', '/ply', '/js', '/plugin', '/lib', '/projectors', '_layouts', '/_includes', 'Gruntfile.js', 'package.json', 'proselinks.jsonp', 'ppanchor.matin', '.gitignore', '/search', '/css', '/img', 'favicon.png','_data/*.json','LICENSES.md','README.md','colorscheme.scss','members.html','mentions.html','index.html']
+  siteurl: 'http://wineway.github.io/project-pages/'
+  ispp: true
+  media: 'img'
+  metadata:
+    projects:
+      - name: "title"
+        field:
+          element: "text"
+          label: "Title"
+          value: ""
+      - name: "description"
+        field:
+          element: "text"
+          label: "Description"
+          value: ""
+      - name: "category"
+        field:
+          element: "text"
+          label: "Project"
+          value: ""
+    _posts:
+      - name: "subtitle"
+        field:
+          element: "text"
+          label: "Sub-Title (Short Description)"
+          value: ""
+      - name: "layout"
+        field:
+          element: "select"
+          label: "Choose Layout"
+          placeholder: "Layouts"
+          options:
+            - name: "Post"
+              value: "post"
+            - name: "Slide"
+              value: "slide"
+            - name: "Projector"
+              value: "projector"
+            - name: "Notebook"
+              value: "notebook"
+            - name: "Ply Surface"
+              value: "plysurface"
+      - name: "title"
+        field:
+          element: "text"
+          label: "Title"
+          value: ""
+      - name: "author"
+        field:
+          element: "text"
+          label: "Author"
+          value: ""
+      - name: "tags"
+        field:
+          element: "text"
+          label: "Tags (seperate with whitespace)"
+          value: ""
+      - name: "category"
+        field:
+          element: "text"
+          label: "Project"
+          value: ""
+      - name: "horizontal"
+        field:
+          element: "hidden"
+          value: </section></section><section markdown="1" data-background="http://projectpages.github.io/project-pages/img/slidebackground.png"><section markdown="1">
+      - name: "vertical"
+        field:
+          element: "hidden"
+          value: </section><section markdown="1">
+      - name: "slideinit"
+        field:
+          element: "hidden"
+          value: <section markdown="1" data-background="http://projectpages.github.io/project-pages/img/slidebackground.png"><section markdown="1">
+      - name: "theme"
+        field:
+          element: "select"
+          label: "Theme (Slide)"
+          placeholder: "Theme (Slide)"
+          options:
+            - name: "Beige"
+              value: "beige"
+            - name: "Blood"
+              value: "blood"
+            - name: "Moon"
+              value: "moon"
+            - name: "Night"
+              value: "night"
+            - name: "Sky"
+              value: "sky"
+            - name: "Solarized"
+              value: "solarized"
+      - name: "trans"
+        field:
+          element: "select"
+          label: "Transition (Slide)"
+          placeholder: "Transition (Slide)"
+          options:
+            - name: "Cube"
+              value: "cube"
+            - name: "Page"
+              value: "page"
+            - name: "Concave"
+              value: "concave"
+            - name: "Linear"
+              value: "linear"
+            - name: "Fade"
+              value: "fade"
+            - name: "None"
+              value: "none"
+      - name: "visualworkflow"
+        field:
+          element: "checkbox"
+          label: "Visual Workflow Chart (Some Layouts)"
+          value: "true"

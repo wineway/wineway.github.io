@@ -1,9 +1,11 @@
 ---
-layout: post
-title:  "[翻译]什么是tensorflow的session"
-date:   2017-3-5 19:30:27 -0800
-author: wineway
-description: "tf.session&tf.graph简介"
+layout:     post
+title:      "[翻译]什么是tensorflow的session"
+author:     wineway
+tags: 		斯坦福CS20SI tensorflow
+subtitle:   tf.session&tf.graph简介
+category:  project1
+visualworkflow: true
 ---
 # [翻译]什么是tensorflow的session
 
