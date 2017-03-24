@@ -2,7 +2,7 @@
 
 - name: wineway
   role: student
-  img: http://i.imgur.com/TWifKkl.jpg
+  img: https://avatars3.githubusercontent.com/u/7801977?v=3&s=460
   github: wineway
   # gplus: https://plus.google.com/+AhmetCecen-GPlus
   # bio: Ahmet Cecen is currently pursuing a PhD in Computational Science and Engineering at Georgia Institute of Technology.  He earned a bachelor’s degree in Mechanical Engineering at Drexel University. Ahmet has been doing research in the fields of computational materials science and materials informatics for the past 6 years, throughout his undergraduate and graduate studies. His current research focus is on leveraging statistical analysis and machine learning tools to solve big data analytics problems in materials science. 
