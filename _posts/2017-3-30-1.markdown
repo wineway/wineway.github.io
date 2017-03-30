@@ -1,0 +1,73 @@
+---
+layout:     post
+title:      "[笔记]scala学习笔记(1)"
+author:     wineway
+tags: 		scala FunctionProgrammin 笔记
+subtitle:   scala函数式编程
+category:  project1
+visualworkflow: true
+---
+## 初识scala函数式编程
+
+### 概念:
+- 引用透明: 函数不论进行任何操作都可以用他的返回值(value)代替.->这种行为称之为**代替模型**(substitute).使程序具备了**等式推理**(equational reasoning)的能力.
+- 过程: 可能包含副作用
+
+### 一个示例
+
+`object`关键字用于创建一个单例类型,`scala`中没有`static`的概念.
+
+scala函数定义形如:
+
+```scala
+def abs[A](n: A): A =
+  if (n < 0) -n
+  else n
+```
+类型为 Int => Int,或 `Function1[A, A]` 的值,1表示接受一个参数.
+
+>单参数方法可以用中缀方式使用,scala中没有操作符的概念
+
+- 匿名函数: 形如 `(x: A) => x==9` 也成**函数字面量**
+
+### 通过类型实现多态
+
+没看懂为啥要这样叫,先跳过
+
+## 函数式数据结构
+
+函数式数据结构只能被纯函数操作,因此函数式数据结构被定义为不可变的.
+```scala
+sealed trait List[+A] //trait 是一种可以包含具体方法的抽象接口
+//sealed 表示这个特质的所有实现都必须定义在这个文件
+//[+A]表示A是发生协变的
+//scala对任何case class/object 生成默认的def toString: String方法,#查看默认的toString实现
+case object Nil extends List[Nothing]
+case class Cons[+A](head: A, tail: List[A]) extends List[A]
+//case 引入两种以上构造器
+object List {
+  def sum(ints: List[Int]): Int = ints match {
+    case Nil => 0
+    case Cons(x, xs) => x + sum(xs)
+  }
+
+  def product(ds: List[Double]): Double = ds match {
+    case Nil => 1.0
+    case Cons(0.0, _) => 0.0
+    case Cons(x, xs) => x*product(xs)
+  }
+
+  def apply[A](as: A*): List[A] =
+    if (as.isEmpty) Nil
+    else Cons(as.head, apply(as.tail: _*))
+
+
+}
+```
+- 型变(varian): +意味着A是协变或是正向的参数,意味着B是A的子类则 `List[B]` 是 `List[A]` 的子类.
+
+- 伴生对象: 和数据类型同名的一个单例(object),通常在里面定义一些用于创建或处理数据类型的便捷方法
+
+### 模式匹配
+
+类似一个别致的 `switch` 声明,可以入侵到表达式的数据结构内部,对这个结构进行检验和提取子表达式.,如果目标和多个模式匹配则选择第一个匹配的.
