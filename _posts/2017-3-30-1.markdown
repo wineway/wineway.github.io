@@ -60,8 +60,6 @@ object List {
   def apply[A](as: A*): List[A] =
     if (as.isEmpty) Nil
     else Cons(as.head, apply(as.tail: _*))
-
-
 }
 ```
 - 型变(varian): +意味着A是协变或是正向的参数,意味着B是A的子类则 `List[B]` 是 `List[A]` 的子类.
