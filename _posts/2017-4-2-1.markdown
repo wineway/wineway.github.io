@@ -40,7 +40,7 @@ visualworkflow: true
 
 #### if
 
-Scala中的 `if` 语句和几乎所有的其他与巨都是具有返回值的表达式,因此我们可以吧`if`表达式的结果赋给其他变量
+Scala中的 `if` 语句和几乎所有的其他语句都是具有返回值的表达式,因此我们可以吧`if`表达式的结果赋给其他变量
 示例:
 
 ```scala
@@ -73,3 +73,93 @@ val configFilePath = if(configFile.exists()){
 生成集合,集合类型由被遍历集合类型推导而出.
 
 >for推导式有一个不成文的规定,当for推导式仅包含单一表达式的时候使用圆括号,当包含多个表达式的时候使用大括号,使用圆括号的时候早前版本的Scala要求表达式之间必须使用分号
+
+##### 拓展作用域与值定义
+你可以在`for`表达式中最初部分定义值,然后再后面的表达式中使用该值
+
+```scala
+val dogBreeds = List(Some(xxxx))
+
+for {some(breed) <- dogBreeds //模式匹配
+  upcaseBreed = breed.toUpperCase()
+} println(upcaseBread)
+```
+>推导式会有效的检查并忽略None
+
+#### 其他循环结构
+
+##### while,do while
+
+`while(){}`
+
+`do{}while()`
+
+#### 条件操作符
+
+`==` `!=` 与Java比较引用是否相同相反,比较的是逻辑相同,如果想比较是否引用相同,使用`eq`方法
+
+#### 异常处理
+
+Scala会使用模式匹配捕捉你所希望捕获的异常, `case NonFatal(ex)` 字句使用 `scala.util.control.NonFatal` 匹配所有非致命异常.
+
+>如果你需要对Option对象进行检测,当他是 `some` 对象时执行一些操作, `None`时不进行操作,常见的方法是使用 `for` 推导式
+
+####自动资源管理
+
+```scala
+
+import scala.language.reflectiveCalls
+import scala.util.control.NonFatal
+
+object manage {
+  def apply[R <: { def close():Unit },T](resource: =>)(f: R =>T) = {
+    var res: Option[R] = None
+    try{
+      res = Some(resource)
+      f(res.get)
+    }catch{
+      case NonFatal(ex) => println(s"Non fatal exception! $ex")
+    } finally{
+      if(res!=None){
+        println(s"Closing resource")
+        res.get.close
+    }
+  }
+}
+}
+object TryCatchARM  {
+  def main(args: Array[String]) ={
+    args foreach(arg => countLines(arg))
+  }
+  import scala.io.Source
+
+  def countLines(filename: String) ={
+    println()
+    manage(Source.fromFile(filename)){source =>
+    val size = source.getLines.size
+    println(s"file $filename has $size lines")
+  if(size>20)throw new RuntimeException("Big file")}
+  }
+}
+```
+><:表示R是父类型包括 `close():Unit` 的方法的结构类型
+> :=> 传名参数
+
+
+#### 惰性赋值
+
+`lazy val resource : Int = init()`
+lazy关键字用于需要时才计算,对于方法调用而言,每次调用方法时方法体都会被执行,惰性赋值则不然,首次使用该值时,用于初始化的代码体才会被执行一次,这种最后能执行一次的计算对于对于可变字段是没有意义的因此 `lazy` 关键字不用于修饰 `var`
+
+后面一段保护式实现惰性求值说的是啥..
+
+#### 枚举
+
+Scala在标准库中定义了 `Enumeration` 类,意味着Scala并未提供任何特殊语法提供枚举, 所以Scala得枚举和Java的enum结构在字节码层面没有任何联系.
+
+object EnumTest extends Enumeration{
+  //type EnumTest = Value
+  val One,Two,Three = Value
+}
+import EnumTest._
+def is(b: Value) = b.toString.endWith("1")
