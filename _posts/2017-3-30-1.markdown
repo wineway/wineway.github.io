@@ -3,7 +3,7 @@ layout:     post
 title:      "[笔记]Scala学习笔记(1)"
 author:     wineway
 tags: 		Scala FunctionProgrammin 笔记
-subtitle:   Scala函数式编程
+subtitle:   Scala函数式编程(1)
 category:  project1
 visualworkflow: true
 ---
@@ -128,5 +128,3 @@ object List {
 
 
 ## 基于 list 的递归并泛化为高阶函数
-
-###

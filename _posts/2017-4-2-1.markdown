@@ -1,0 +1,75 @@
+---
+layout:     post
+title:      "[笔记]Scala学习笔记(2)"
+author:     wineway
+tags: 		Scala FunctionProgrammin 笔记
+subtitle:   Scala语法要点
+category:  project1
+visualworkflow: true
+---
+>import scala.language.postfixOps 开启后缀表达式方式
+
+### 标示符
+
+#### 标识符可用字符
+
+所有可打印acii字符均可出现在Scala标示符中,插入字符包括了(,),{,and},[,];分隔符包括\`,',",,,..(这两个是啥..),Scala还允许标识符使用编码\u002到\u007F之间的字符,如数学符号,像/和<这样的操作符字符以及其他的符号
+
+#### 普通标示符:字母,数字$,\_和操作符的组合
+
+由于美元符在Scala中作为特定作用,不应该吧$作为标示符使用,虽然编译器不会阻止你,编译器会将下划线之后空格之前的所有字符视为标示符的一部分,所以如果在下划线后输入操作符,那么不允许在操作符后输入字母或数字
+
+#### 普通标示符: 操作符
+
+某一标示符以操作符开头,那么后面的字符也必须是操作符字符
+
+#### 使用反引号定义标示符
+
+如: ``def `test that addition works` = assert(1 + 1 = 2)``
+如果访问的Java类方法或变量名与Scala保留字相同,我们则需要反引号命名.
+
+#### 模式匹配标示符
+
+以小写字母开头的标记会被解析为变量标示符,而大写字符开头的标记会被解释为常量标示符.
+
+>无参数方法的使用习惯: 定义无副作用的无参数方法省略括号,有副作用方法则添加括号
+
+>Scala中,任何以(:)结束的方法都与右边对象绑定,如(1)中的Cons
+
+### Scala中的控制语句
+
+#### if
+
+Scala中的 `if` 语句和几乎所有的其他与巨都是具有返回值的表达式,因此我们可以吧`if`表达式的结果赋给其他变量
+示例:
+
+```scala
+val configFile = new java.io.File("somefile.txt")
+
+val configFilePath = if(configFile.exists()){
+  configFile.getAbsolutePath()
+}else{configFile.createNewFile()
+      configFile.getAbsolutePath()
+    }
+```
+
+`if` 语句返回值的类型被称为所有条件分支的**最小上界类型**,也就是与每条 `each` 字句可能返回值类型最接近的父类型
+
+#### for
+
+>推导式: 遍历一个或多个集合,对集合中元素进行"推导",并从中计算出新的事物,新推导的事物往往是另一个集合
+
+##### for循环
+
+`for(tmp <- List if f(tmp))`
+> 生成器表达式: 形如上式中 `<-` ,表达式会基于集合生成单独的数值,左箭头操作符用于对象列表这样的集合进行遍历
+
+>保护式: 加入 `if` 表达式,筛选希望保留的元素, 可以加入多个 `if`
+表达式
+
+##### Yielding
+
+`val filter = for{tmp <- List if f(tmp)} yield tmp`
+生成集合,集合类型由被遍历集合类型推导而出.
+
+>for推导式有一个不成文的规定,当for推导式仅包含单一表达式的时候使用圆括号,当包含多个表达式的时候使用大括号,使用圆括号的时候早前版本的Scala要求表达式之间必须使用分号
