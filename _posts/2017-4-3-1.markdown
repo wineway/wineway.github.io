@@ -3,7 +3,7 @@ layout:     post
 title:      "[笔记]Scala学习笔记(3)"
 author:     wineway
 tags: 		Scala 模式匹配 笔记
-subtitle:   Scala语法要点
+subtitle:   Scala模式匹配详解
 category:  project1
 visualworkflow: true
 ---
@@ -36,3 +36,93 @@ for{
 >匹配按顺序进行,宽泛的子句应该出现在具体的子句之后,否则不可能有机会匹配的上,编译器能识别这种类型错误?(大概)除了偏函数所有的`match`字句必须完全覆盖全部输入,当输入类型为 `Any` 时,在结尾用 `case _` 或 `case some_name` 作为默认子句
 
 在编写 `case` 子句中,有一些规则和陷阱需要注意, 在匹配或者提取的值中,编译器假定以大写字母开头的为类型名,以小写字母开头的为变量名
+
+```scala
+def checkY(y: Int) = {
+  for {
+    x <- seq(99, 100, 101)
+  }{
+    val str = x match {
+      //case y => "found y!"   y被认为是匹配所有输入,并将其赋值给y
+      case `y` => "found y!"
+      case 99|100|101 => "int" //匹配子句使用相同处理代码,使用"或"逻辑
+    }
+    println(str)
+  }
+}
+```
+
+### 序列的匹配
+
+`Seq` 是具体的集合类型的父类型,这些集合类型支持以确定类型遍历其元素,如 `List` 和 `Vector`, `Map` 不是`Seq` 的子类型,但是可以通过 `.toSeq` 方法转换为*键值对(pair)*序列, `+:` 是 `Seq` 的*构造操作符*,和 `List` 的 `::` 操作符类似,最然他们被称为*操作符*或*方法*,但其实不太准确,之后的章节会讨论这些表达式.
+
+Scala库中有一个名为 `Nil` 的对象用于匹配所有空序列,序列对相等操作的实现都是一样的,不必匹配到具体类型
+
+>可变参列表_*: 告诉Scala编译器在传递参数时逐个传入数组的每个元素，而不是数组整体。
+
+### 元组的匹配
+
+`case ("scala",_,_)` 匹配第一个字符串为scala的三元元组
+
+### case 中的 guard 语句
+
+```scala
+for (i <- Seq(1,2,3,4)) {
+  i match {
+    case _ if i%2 == 0 =>//
+    case _ =>//
+  }
+}
+```
+if表达式两边不需要使用括号,就像在for中一样
+
+### case 类的匹配
+
+```scala
+case class Address(street: String, city: String, country: String)
+case class Person(name: String, age: Int, address: Address)
+
+val alice   = Person("Alice",   25, Address("1 Scala Lane", "Chicago", "USA"))
+val bob     = Person("Bob",     29, Address("2 Java Ave.",  "Miami",   "USA"))
+val charlie = Person("Charlie", 32, Address("3 Python Ct.", "Boston",  "USA"))
+
+for (person <- Seq(alice, bob, charlie)) {
+  person match {
+    case Person("Alice", 25, Address(_, "Chicago", _) => println("Hi Alice!")
+    case Person("Bob", 29, Address("2 Java Ave.", "Miami", "USA")) =>
+      println("Hi Bob!")
+    case Person(name, age, _) =>
+      println(s"Who are you, $age year-old person named $name?")
+  }
+}
+```
+解释看下面 `unapply` 方法
+
+```scala
+val itemsCosts = Seq(("Pencil", 0.52), ("Paper", 1.35), ("Notebook", 2.43))
+val itemsCostsIndices = itemsCosts.zipWithIndex
+for (itemCostIndex <- itemsCostsIndices) {
+  itemCostIndex match {
+    case ((item, cost), index) => println(s"$index: $item costs $cost each")
+  }
+}
+```
+调用 `.zipWithIndex` 返回元组形式((元素),index)
+
+### unapply 方法
+
+`case` 类中有一个伴随对象,伴随对象中有一个名为 `apply` 的工厂方法,基于*对称*的观点,一定有一个 `unapply` 的自动生成的方法,用于提取和解构
+
+当遇到 `case Person("Alice", 25, Address(_, "Chicago", _) => ` 形式的类型匹配表达式,Scala会找到 `Person.unapply(...)` 和 `Address.unapply(...)` 两个方法, 所有的 `unapply` 方法都返回 `Option[TupleN[...]]` 此处 `N` 表示可以从对象中提取的值得个数
+
+>既然编译器已经知道对象是 `Person` 为什么 `unapply` 还是返回 `Option` 呢?,Scala允许 `unapply` 方法"否决"这个匹配,返回 `None` ,而且如果我们不希望的话, 可以不必暴露对象的所有属性,,我们会在 `unapplySeq` 方法中探讨这一细节,不过此时只要知道被提取的属性以 `Some` 形式返回即可,我们也可使用 `_` 占位符丢掉不需要的元素
+
+>为了获得性能上的优势,Scala 2.22.1 放松了对 `unapply` 返回类型的限制,现在 `Unapply` 能返回任意具有以下方法的类型:`def isEmpty: Boolean` `def get:T`
+
+>返回类型 `Option[Tuple3[String,Int,Address]]`写法太过冗长,Scala允许我们使用元组字面语法来处理这种类型`Option[(String,Int,Address)]`
+
+#### `+:` 对象
+
+`+:` 通过向现有*序列*前追加新元素来构造新序列,我们可以这样凭空构造整个序列`val list = 1 +: 2 +: 3 +: Nil` ,Scala希望尽可能的支持*构造*和*解构*的标准语法,为了支持任意非空集合,Scala库重定义了一个特殊的单例对象: `+:` ,类似方法名,在Scala中,类型名可使用的对象也很广泛.
+
+这个类型只有一个方法,即编译器用来在 `case` 语句中进兴提取操作 `unapply` 方法, `unapply` 方法声明的示意就是这样(对实际声明稍作简化,还没有涉及全部知识细节) `def unapply[T, Coll](collection: Coll): Option[(T,Coll)]` 头部被推断为某种集合类型 `Coll`, `Coll`同时也是输入的集合类型,返回了一个 `Option` 类型.
