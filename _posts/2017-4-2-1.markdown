@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(2)"
 author:     wineway
-tags: 		Scala FunctionProgrammin 笔记
+tags: 		Scala Scala语法基础 笔记
 subtitle:   Scala语法要点
 category:  project1
 visualworkflow: true
@@ -104,7 +104,7 @@ Scala会使用模式匹配捕捉你所希望捕获的异常, `case NonFatal(ex)`
 
 >如果你需要对Option对象进行检测,当他是 `some` 对象时执行一些操作, `None`时不进行操作,常见的方法是使用 `for` 推导式
 
-####自动资源管理
+#### 自动资源管理
 
 ```scala
 
@@ -156,10 +156,48 @@ lazy关键字用于需要时才计算,对于方法调用而言,每次调用方�
 #### 枚举
 
 Scala在标准库中定义了 `Enumeration` 类,意味着Scala并未提供任何特殊语法提供枚举, 所以Scala得枚举和Java的enum结构在字节码层面没有任何联系.
-
+```scala
 object EnumTest extends Enumeration{
-  //type EnumTest = Value
+  type EnumTest = Value //别名
   val One,Two,Three = Value
 }
 import EnumTest._
-def is(b: Value) = b.toString.endWith("1")
+def is(b: EnumTest) = b.toString.endsWith("1") //使用别名
+for(ET <- EnumTest.values) println(s"${ET.id}\t$ET")
+```
+未显示指定ID值则自动从0开始分配,未显示指定Value参数,则将对象名作为参数,有一重载版本value方法通风是接受Id值和字符串 `value(1,"four")`
+导入 `EnumTest` 使得每一个枚举值都在代码作用域内
+
+#### 可插入字符串
+
+`s"${bar}"` 表达式 `bar` 的值会转化为字符串并被插入到原字符串,加入表达式返回的不是字符串,而是某一类型的实例,那么只要该实例中定义了 `toString` 方法,西永就会调用该方法,如果 `bar` 中表达式无法返回字符串,程序会报错(为啥我测试直接返回了带$的字符串...)
+
+如果`bar` 是个变量引用,可以直接省略`{}`
+
+`f"${num}%.2f"` num被显示到小数点后两位
+
+Scala编译器会在某些语境对Java字符串进行封装,并提供了一些额外的方法,这些定义在 `scala.collection.immutable,StringLike` ,包括了一个叫做 `format` 的实例方法
+`"%02d: name = %s".format(5, "Dean Wampler")`
+最后一种称为*原生*(raw)插入器 `raw""`
+
+#### Trait: Scala语言的接口和"混入"
+
+以后会详解 `trait` 现在你可以将其视为允许将声明方法实现的接口,我们可以在定义变量时通过 `with` 关键字混入任意多个 `trait` ,一些 `trait` 也许不会对现有行为作任何修改,他们只会添加一些新的有用方法,但是这些方法是相对独立的,假如你希望覆盖子类中某一具体方法,Scala要求必须使用 `override` 关键字, 访问父类方法可以用 `super.`.
+```scala
+trait Logging {
+  def info (message :String):Unit
+  def  warning(message: String):Unit
+}
+
+trait Stdoutlogging extends Logging {
+  def info (message: String) = println(s"INFO: $message")
+  def warning(message: String) = println(s"WARNING: $message")
+}
+
+val service = new service("dos") with Stdoutlogging{
+  override def work(i: Int): Int ={
+    info(s"Starting work: i = $i")
+    val result = super.work(i)
+  }
+}
+```
