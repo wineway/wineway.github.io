@@ -54,7 +54,7 @@ def checkY(y: Int) = {
 
 ### 序列的匹配
 
-`Seq` 是具体的集合类型的父类型,这些集合类型支持以确定类型遍历其元素,如 `List` 和 `Vector`, `Map` 不是`Seq` 的子类型,但是可以通过 `.toSeq` 方法转换为*键值对(pair)*序列, `+:` 是 `Seq` 的*构造操作符*,和 `List` 的 `::` 操作符类似,最然他们被称为*操作符*或*方法*,但其实不太准确,之后的章节会讨论这些表达式.
+`Seq` 是具体的集合类型的父类型,这些集合类型支持以确定类型遍历其元素,如 `List` 和 `Vector`, `Map` 不是`Seq` 的子类型,但是可以通过 `.toSeq` 方法转换为**键值对(pair)**序列, `+:` 是 `Seq` 的**构造操作符**,和 `List` 的 `::` 操作符类似,最然他们被称为**操作符*或**方法**,但其实不太准确,之后的章节会讨论这些表达式.
 
 Scala库中有一个名为 `Nil` 的对象用于匹配所有空序列,序列对相等操作的实现都是一样的,不必匹配到具体类型
 
@@ -111,18 +111,330 @@ for (itemCostIndex <- itemsCostsIndices) {
 
 ### unapply 方法
 
-`case` 类中有一个伴随对象,伴随对象中有一个名为 `apply` 的工厂方法,基于*对称*的观点,一定有一个 `unapply` 的自动生成的方法,用于提取和解构
+`case` 类中有一个伴随对象,伴随对象中有一个名为 `apply` 的工厂方法,基于**对称**的观点,一定有一个 `unapply` 的自动生成的方法,用于提取和解构
 
 当遇到 `case Person("Alice", 25, Address(_, "Chicago", _) => ` 形式的类型匹配表达式,Scala会找到 `Person.unapply(...)` 和 `Address.unapply(...)` 两个方法, 所有的 `unapply` 方法都返回 `Option[TupleN[...]]` 此处 `N` 表示可以从对象中提取的值得个数
 
 >既然编译器已经知道对象是 `Person` 为什么 `unapply` 还是返回 `Option` 呢?,Scala允许 `unapply` 方法"否决"这个匹配,返回 `None` ,而且如果我们不希望的话, 可以不必暴露对象的所有属性,,我们会在 `unapplySeq` 方法中探讨这一细节,不过此时只要知道被提取的属性以 `Some` 形式返回即可,我们也可使用 `_` 占位符丢掉不需要的元素
 
->为了获得性能上的优势,Scala 2.22.1 放松了对 `unapply` 返回类型的限制,现在 `Unapply` 能返回任意具有以下方法的类型:`def isEmpty: Boolean` `def get:T`
+>为了获得性能上的优势,Scala 2.22.1 放松了对 `unapply` 返回类型的限制,现在 `unapply` 能返回任意具有以下方法的类型:`def isEmpty: Boolean` `def get:T`
 
 >返回类型 `Option[Tuple3[String,Int,Address]]`写法太过冗长,Scala允许我们使用元组字面语法来处理这种类型`Option[(String,Int,Address)]`
 
 #### `+:` 对象
 
-`+:` 通过向现有*序列*前追加新元素来构造新序列,我们可以这样凭空构造整个序列`val list = 1 +: 2 +: 3 +: Nil` ,Scala希望尽可能的支持*构造*和*解构*的标准语法,为了支持任意非空集合,Scala库重定义了一个特殊的单例对象: `+:` ,类似方法名,在Scala中,类型名可使用的对象也很广泛.
+`+:` 通过向现有**序列**前追加新元素来构造新序列,我们可以这样凭空构造整个序列`val list = 1 +: 2 +: 3 +: Nil` ,Scala希望尽可能的支持**构造**和**解构**的标准语法,为了支持任意非空集合,Scala库重定义了一个特殊的单例对象: `+:` ,类似方法名,在Scala中,类型名可使用的对象也很广泛.
 
 这个类型只有一个方法,即编译器用来在 `case` 语句中进兴提取操作 `unapply` 方法, `unapply` 方法声明的示意就是这样(对实际声明稍作简化,还没有涉及全部知识细节) `def unapply[T, Coll](collection: Coll): Option[(T,Coll)]` 头部被推断为某种集合类型 `Coll`, `Coll`同时也是输入的集合类型,返回了一个 `Option` 类型.
+
+```Scala
+scala> case class With[A,B](a: A, b: B)
+defined class With
+
+scala> val with1: With[String,Int] = With("Foo", 1)
+with1: With[String,Int] = With(Foo,1)
+
+scala> val with2: String With Int  = With("Bar", 2)
+with2: With[String,Int] = With(Bar,2)
+
+scala> Seq(with1, with2) foreach { w =>
+     |   w match {
+     |     case s With i => println(s"$s with $i")//试用中缀表达式
+     |     case _        => println(s"Unknown: $w")
+     |   }
+     | }
+```
+所以可以使用两种方式书写类型签名, `with[String,Int]` 或 `String with Int`.但是使用类似的语法形式初始化一个值是不可行的
+```scala
+scala> val w = "one" With 2
+<console>:7: error: value With is not a member of String
+       val w = "one" With 2
+```
+使用`:+` 对象匹配到 `List` 最后一个元素,然后从后往前一次访问各个元素:
+```scala
+  def reverseSeqToString[T](l: Seq[T]): String = l match {
+  case prefix :+ end => reverseSeqToString(prefix) + s" :+ $end"
+  case Nil => "Nil"
+}
+```
+(用得着么=-=想吐槽)
+也可以使用 `:+` 构造一个序列 `Nil :+ 1 :+ 2 :+ 3 :+ 4 :+ 5`
+
+>'+:'方法对于 List 时间复杂度为 O(n),两种方法都要从头到尾便利一遍,而对于 Vector 时间复杂度则为O(1)
+
+### unapplySeq 方法
+
+`Seq` 对象还定义了 `unapplySeq[A](x: Seq[A]): Some[Seq[A]]` 方法,`case Seq(head1, head2, _*)` 将会调用 `unapplySeq`方法
+
+`Seq` 提供了两个方法用于创建滑动窗口,`seq.sliding(3,2).toList` `sliding` 方法返回迭代器,他们是**惰性**的,对迭代器调用 `toSeq` 方法,可以将迭代器转为一个 `collection.immutable.Stream` 这是一个惰性列表,创建时即对列表的头部元素求值,但只在需要的时候才对尾部元素求值, `toList` 则不同,他返回一个 `List`
+
+### 可变参数列表的匹配
+
+```scala
+object Op extends Enumeration {                                      
+  type Op = Value
+  val EQ   = Value("=")
+  val NE   = Value("!=")
+  val LTGT = Value("<>")
+  val LT   = Value("<")
+  val LE   = Value("<=")
+  val GT   = Value(">")
+  val GE   = Value(">=")
+  }
+import Op._
+
+  // Represent a SQL "WHERE x op value" clause, where +op+ is a
+  // comparison operator: =, !=, <>, <, <=, >, or >=.
+case class WhereOp[T](columnName: String, op: Op, value: T)          
+
+  // Represent a SQL "WHERE x IN (a, b, c, ...)" clause.
+case class WhereIn[T](columnName: String, val1: T, vals: T*)         
+
+val wheres = Seq(                                                    
+  WhereIn("state", "IL", "CA", "VA"),
+  WhereOp("state", EQ, "IL"),
+  WhereOp("name", EQ, "Buck Trends"),
+  WhereOp("age", GT, 29))
+
+for (where <- wheres) {
+  where match {
+    case WhereIn(col, val1, vals @ _*) =>                            
+      val valStr = (val1 +: vals).mkString(", ")
+      println (s"WHERE $col IN ($valStr)")
+    case WhereOp(col, op, value) => println (s"WHERE $col $op $value")
+    case _ => println (s"ERROR: Unknown expression: $where")
+    }
+  }
+```
+`name @ _*`用于匹配可变参列表
+
+### 正则表达式的匹配
+
+[一个简单的scala正则表达式入门教程](https://wizardforcel.gitbooks.io/w3school-scala/content/24.html)
+
+|表达式	|匹配规则|
+|:---:|:----|
+|^	|匹配输入字符串开始的位置。|
+|$	|匹配输入字符串结尾的位置。|
+|.	|匹配除"\r\n"之外的任何单个字符。|
+|[...]	|字符集。匹配包含的任一字符。例如，"[abc]"匹配"plain"中的"a"。|
+|[^...]	|反向字符集。匹配未包含的任何字符。例如，"[^abc]"匹配"plain"中"p"，"l"，"i"，"n"。|
+|\A	|匹配输入字符串开始的位置（无多行支持）|
+|\z	|字符串结尾(类似$，但不受处理多行选项的影响)|
+|\Z	|字符串结尾或行尾(不受处理多行选项的影响)|
+|re*	|重复零次或更多次|
+|re+	|重复一次或更多次|
+|re?	|重复零次或一次|
+|re{ n}	|重复n次|
+|re{ n,}|  |
+|re{ n, m}	|重复n到m次|
+|a()竖线)b	|匹配 a 或者 b|
+|(re)	|匹配 re,并捕获文本到自动命名的组里|
+|(?: re)	|匹配 re,不捕获匹配的文本，也不给此分组分配组号|
+|(?> re)	|贪婪子表达式|
+|\w	|匹配字母或数字或下划线或汉字|
+|\W	|匹配任意不是字母，数字，下划线，汉字的字符|
+|\s	|匹配任意的空白符,相等于 [\t\n\r\f]|
+|\S	|匹配任意不是空白符的字符|
+|\d	|匹配数字，类似 [0-9]|
+|\D	|匹配任意非数字的字符|
+|\G	|当前搜索的开头|
+|\n	|换行符|
+|\b	|通常是单词分界位置，但如果在字符类里使用代表退格|
+|\B	|匹配不是单词开头或结束的位置|
+|\t	|制表符|
+|\Q	|开始引号：\Q(a+b)*3\E 可匹配文本 "(a+b)*3"。|
+|\E	|结束引号：\Q(a+b)*3\E 可匹配文本 "(a+b)*3"。|
+
+示例:
+```scala
+val BookExtractorRE = """Book: title=([^,]+),\s+author=(.+)""".r     // 两个捕捉组,一个表示标题,一个表示作者
+val MagazineExtractorRE = """Magazine: title=([^,]+),\s+issue=(.+)""".r
+
+val catalog = Seq(
+  "Book: title=Programming Scala Second Edition, author=Dean Wampler",
+  "Magazine: title=The New Yorker, issue=January 2014",
+  "Unknown: text=Who put this here??"
+)
+
+for (item <- catalog) {
+  item match {
+    case BookExtractorRE(title, author) => println(s"""Book "$title", written by $author""")
+    case MagazineExtractorRE(title, issue) =>
+      println(s"""Magazine "title", issue $issue""")
+    case entry => println(s"Unrecognized entry: $entry")
+  }
+}
+```
+调用 `r` 方法创建正则表达式,我们使用三重双引号表示正则表达式字符串,否则你就不得不对正则表达是进行转义,,例如用 `\\s` 表示 `\s` 你还可以通过创建一个 `Regex` 类的实例来定义正则表达式,如 `new Regex("""\w""")` 不过这种方法不常见
+
+>在三个双引号内的正则表达式中使用变量插值是无效的,你依然要对正则表达式进行转义 例如: `s"""$first\\s+$second""".r`
+
+scala.util.matching.Regex定义了若干用于正则表达式的其他操作方法,如查找替换等(开头连接有一些)
+
+### 再谈 `case` 语句的变量绑定
+
+```scala
+case class Address(street: String, city: String, country: String)
+case class Person(name: String, age: Int, address: Address)
+
+val alice   = Person("Alice",   25, Address("1 Scala Lane", "Chicago", "USA"))
+val bob     = Person("Bob",     29, Address("2 Java Ave.",  "Miami",   "USA"))
+val charlie = Person("Charlie", 32, Address("3 Python Ct.", "Boston",  "USA"))
+
+for (person <- Seq(alice, bob, charlie)) {
+  person match {
+    case p @ Person("Alice", 25, address) => println(s"Hi Alice! $p")
+    case p @ Person("Bob", 29, a @ Address(street, city, country)) =>
+      println(s"Hi ${p.name}! age ${p.age}, in ${a.city}")
+    case p @ Person(name, age, _) =>
+      println(s"Who are you, $age year-old person named $name? $p")
+  }
+}
+```
+`p @...` 语法将整个 `Person` 类实例赋值给变量 `p`
+
+### 再谈类型匹配
+
+```scala
+scala> for {
+     |   x <- Seq(List(5.5,5.6,5.7), List("a", "b"))
+     | } yield (x match {
+     |   case seqd: Seq[Double] => ("seq double", seqd)
+     |   case seqs: Seq[String] => ("seq string", seqs)
+     |   case _                 => ("unknown!", x)
+     | })
+<console>:12: warning: non-variable type argument Double in type pattern
+Seq[Double] (the underlying of Seq[Double]) is unchecked since it is
+eliminated by erasure
+                case seqd: Seq[Double] => ("seq double", seqd)
+                         ^
+<console>:13: warning: non-variable type argument String in type pattern
+Seq[String] (the underlying of Seq[String]) is unchecked since it is
+eliminated by erasure
+                case seqs: Seq[String] => ("seq string", seqs)
+                         ^
+<console>:13: warning: unreachable code
+                case seqs: Seq[String] => ("seq string", seqs)
+                                        ^
+res0: List[(String, List[Any])] = List((seq double,List(5.5, 5.6, 5.7)),(seq double,List(a, b)))
+```
+
+因为Scala运行于JVM中,这些警告源于JVM的**类型擦除**,JVM的字节码不会记住一个泛型实例中实际传入的类型参数信息,一个有效但是不美观的解决方式是:先匹配集合,然后用一个嵌套的匹配语句去匹配集合中的一个元素,这样的话,我们也必须单独处理空序列
+
+### 封闭继承层级与全覆盖匹配
+
+```scala
+sealed abstract class HttpMethod() {                                 //
+    def body: String                                                 //
+    def bodyLength = body.length
+}
+
+case class Connect(body: String) extends HttpMethod                  //
+case class Delete (body: String) extends HttpMethod
+
+def handle (method: HttpMethod) = method match {                     //
+  case Connect (body) => s"connect: (length: ${method.bodyLength}) $body"
+  case Delete  (body) => s"delete:  (length: ${method.bodyLength}) $body"
+}
+```
+由于不允许有其他用于自定义的子类型,随着项目演进,匹配的全覆盖性也不会丢失
+
+>也可以定义一个抽象的不带参数的父类方法,在子类型中给一个 `val` 实现,一个不带参数,返回值为某类型变量的方法可以返回任意一个该类型的变量,,当方法被调用时,使用 `val` 变量与真是调用方法一样安全,事实上,这是透明引用的一个应用,在透明引用中,我们用一个值代替一个总是返回固定值的表达式
+
+//尽量避免枚举类型实现,编译器无法判断是否全覆盖
+
+### 模式匹配的其他用法
+
+定义变量用于提取实例属性:
+```scala
+val Person(name, age, Address(_, state, _)) = Person("Dean", 29, Address("1 Scala Way", "CA", "USA"))
+name: String = Dean
+age: Int = 29
+state: String = CA
+```
+用于 `List` 上:
+```scala
+val Seq(a,b,c) = List(1,2,3)
+a: Int = 1
+b: Int = 2
+c: Int = 3
+```
+
+`if` 表达式中使用:
+```scala
+if (p == Person("Dean", 29,
+     |    Address("1 Scala Way", "CA", "USSR"))) "yes" else "no"
+res1: String = no”
+```
+注意这里面不能使用 `_` 占位符:
+```scala
+scala> if (p == Person(_, 29, Address(_, _, "USA"))) "yes" else "no"
+<console>:13: error: missing parameter type for expanded function
+ ((x$1) => p.$eq$eq(Person(x$1,29,((x$2,x$3) => Address(x$2,x$3,"USA")))))
+              if (p == Person(_, 29, Address(_, _, "USA"))) "yes" else "no"
+                              ^
+ ...
+ ```
+ There’s an internal function called $eq$eq that’s used for the == test.
+
+ 这个 `==test` 是啥....
+
+ >JVM规范中,只允许字母数字,\_,$作为标示符,Scala对一些非字母数字做了字符映射,这里 `_` 被影射为 `$eq`
+
+使复杂的函数字面量易于使用:
+```scala
+pas map { //匿名偏函数=-=
+  case (Person(name, age), Address(street, city, country)) =>
+    s"$name (age: $age) lives at $street, $city, in $country"
+}
+```
+使用正则表达式用模式匹配解构字符串: //先放着..以后再来看
+```scala
+scala> val cols = """\*|[\w, ]+""" // for columns
+cols: String = \*|[\w, ]+
+
+scala> val table = """\w+"""       // for table names
+table: String = \w+
+
+scala> val tail = """.*"""         // for other clauses
+tail: String = .*
+
+scala> val selectRE =
+     | s"""SELECT\\s*(DISTINCT)?\\s+($cols)\\s*FROM\\s+($table)\\s*($tail)?;""".r
+selectRE: scala.util.matching.Regex = \
+  SELECT\s*(DISTINCT)?\s+(\*|[\w, ]+)\s*FROM\s+(\w+)\s*(.*)?;
+
+scala> val selectRE(distinct1, cols1, table1, otherClauses) =
+     |   "SELECT DISTINCT * FROM atable;"
+distinct1: String = DISTINCT
+cols1: String = *
+table1: String = atable
+otherClauses: String = ""
+
+scala> val selectRE(distinct2, cols2, table2, otherClauses) =
+     |   "SELECT col1, col2 FROM atable;"
+distinct2: String = null
+cols2: String = "col1, col2 "
+table2: String = atable
+otherClauses: String = ""
+
+scala> val selectRE(distinct3, cols3, table3, otherClauses) =
+     |   "SELECT DISTINCT col1, col2 FROM atable;"
+distinct3: String = DISTINCT
+cols3: String = "col1, col2 "
+table3: String = atable
+otherClauses: String = ""
+
+scala> val selectRE(distinct4, cols4, table4, otherClauses) =
+     |   "SELECT DISTINCT col1, col2 FROM atable WHERE col1 = 'foo';"
+distinct4: String = DISTINCT
+cols4: String = "col1, col2 "
+table4: String = atable
+otherClauses: String = WHERE col1 = 'foo'
+```
+### 总结关于模式匹配的评价
+
+`JavaBeans` 模型有一个无意中造成的结果,就是模式匹配鼓励开发者用 `getter` 和 `setter` 暴露对象属性,而这种做法往往忽视了一点: 对象属性应该被封装,所以你可以像自定义 `unapply` 方法时一样,抽取信息同时隐藏细节,实际上 `unapply` 返回的信息可能是属性转换后的结果
+
+最后,请谨慎对待默认的 `case` 子句:在什么情况下,才应该出现"以上均不匹配"呢
