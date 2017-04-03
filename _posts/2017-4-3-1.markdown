@@ -1,0 +1,38 @@
+---
+layout:     post
+title:      "[笔记]Scala学习笔记(3)"
+author:     wineway
+tags: 		Scala 模式匹配 笔记
+subtitle:   Scala语法要点
+category:  project1
+visualworkflow: true
+---
+## 模式匹配
+
+在Scala模式匹配中, 你可以使用户类型,通配符,序列,正则表达式,甚至可以深入获取对象的状态,这种对象状态遵循一定的协议,也就是对象内部状态的可见性由该类型的实现来控制,这时的我们能够轻易获取暴露的状态并应用于变量中,对象状态的获取往往被称为"提取"或"解构"
+
+模式匹配可以用在许多代码场景中,最常用于 `match` 中
+
+### 简单匹配
+
+编译器可能会警告 `match` 语句未能覆盖所有可能输入值,当尝试去匹配一个没有 `case` 语句的值时,我们发现编译器抛出了一个 `matchError`
+
+### match中的值,变量和类型
+
+```scala
+for{
+  x <- Seq(1,2,"one","two",'four)//Seq[Any]
+}{
+  val str = x match {//最小公共上限自动推导str类型
+    case 1 => "int 1"
+    case _: Int => "other int"+x //我们可以在所有字句中使用x
+    case "one" => "string one"+x
+    case _: String => "other string"+x
+    case unexpected => "unexpected value"+unexpected
+  }
+  println(str)
+}
+```
+>匹配按顺序进行,宽泛的子句应该出现在具体的子句之后,否则不可能有机会匹配的上,编译器能识别这种类型错误?(大概)除了偏函数所有的`match`字句必须完全覆盖全部输入,当输入类型为 `Any` 时,在结尾用 `case _` 或 `case some_name` 作为默认子句
+
+在编写 `case` 子句中,有一些规则和陷阱需要注意, 在匹配或者提取的值中,编译器假定以大写字母开头的为类型名,以小写字母开头的为变量名
