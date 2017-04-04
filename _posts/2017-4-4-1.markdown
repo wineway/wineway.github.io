@@ -1,0 +1,80 @@
+---
+layout:     post
+title:      "[笔记]Scala学习笔记(4)"
+author:     wineway
+tags: 		Scala 隐式(implicit) 笔记
+subtitle:   Scala隐式详解
+category:  project1
+visualworkflow: true
+---
+## 隐式详解
+
+隐式是Scala的一个强大且富有争议的特性,使用隐式可以有效减少代码,向已有类型注入新的方法,创建**领域特定语言(DSL)**
+
+隐式之所以会产生争议,是因为除了通过 `Predef` 对象自动加载的那些隐式对象外,其他在源码中出现的隐式对象均不是本地对象,隐式对象一旦进入作用域,编译器便能执行该隐式对象以生成方法参数或将指定参数转化为预期类型,不过在阅读源码时,读者无法简单的指出什么时候会应用这些隐式值和隐式方法,而这可能会给该读者造成困惑,幸运的是,随着经验累积,你将能偶意识到什么时候会触发这些隐式对象,你也可以通过阅读这些对象的API来学习这些知识
+
+### 隐式参数
+
+```scala
+def calcTex (amount: Float)(implicit rate: Float): Float = amount * rate
+
+object SimpleStateSalesTax {
+  implicit val rate: Float = 0.05F
+}
+
+case class ComplicatedSalesTaxData(
+  baseRate: Float,
+  isTaxHoliday: Boolean,
+  storeId: Int
+)
+
+object ComplicatedSalesTax {
+  private def extraTaxRateForStore(id: Int):Float = {
+    //通过id推断商铺所在地,然后计算附加税
+    0.0F
+  }
+
+  implicit def rate(implicit cstd: ComplicatedSalesTaxData): Float =
+    if (cstd.isTaxHoliday) 0.0F
+    else cstd.baseRate + extraTaxRateForStore(cstd.storeId)
+}
+
+{
+  import SimpleStateSalesTax.rate
+
+  val amount = 100F
+  println(s"${calcTex(amount)}")
+}
+
+{
+  import ComplicatedSalesTax.rate
+  implicit val myStore = ComplicatedSalesTaxData(0.06F,false,1010)
+
+  val amount = 100F
+  println(s"${calcTex(amount)}")
+}
+```
+.....`:Float` 竟然可以是返回 `Float` 的同名函数...没想到啊没想到.....
+
+#### 调用 implicity 方法
+
+```scala
+import math.Ordering
+
+case class MyList[A](list: List[A]) {
+    def sortBy1[B](f: A => B)(implicit ord: Ordering[B]): List[A] =
+    list.sortBy(f)(ord)
+
+  def sortBy2[B : Ordering](f: A => B): List[A] =
+    list.sortBy(f)(implicitly[Ordering[B]])
+}
+
+val list = MyList(List(1,3,5,2,4))
+
+list sortBy1 (i => -i)
+list sortBy2 (i => -i)
+```
+
+类型参数 `B: Ordering` 被称为 **上下文定界(context bound)** 暗示第二个参数列表(隐式参数列表)将接受 `Ordering[B]` 实例,然后使用 `Predef.implicity` 方法获取参数, `implicit` 方法会对传给函数所有标记为隐式参数的实例进行解析.请注意 `implicity` 需要的类型签名,本段代码中为 `Ordering[B]`
+
+### 隐式参数适用场景
