@@ -54,7 +54,7 @@ object ComplicatedSalesTax {
   println(s"${calcTex(amount)}")
 }
 ```
-.....`:Float` 竟然可以是返回 `Float` 的同名函数...没想到啊没想到.....
+以上是一个示例.
 
 #### 调用 implicity 方法
 
@@ -78,3 +78,82 @@ list sortBy2 (i => -i)
 类型参数 `B: Ordering` 被称为 **上下文定界(context bound)** 暗示第二个参数列表(隐式参数列表)将接受 `Ordering[B]` 实例,然后使用 `Predef.implicity` 方法获取参数, `implicit` 方法会对传给函数所有标记为隐式参数的实例进行解析.请注意 `implicity` 需要的类型签名,本段代码中为 `Ordering[B]`
 
 ### 隐式参数适用场景
+
+#### 执行上下文
+
+>使用隐式参数传入"执行上下文"
+
+#### 功能控制
+
+比如通过引用授权令牌控制某些特定API操作只能供某些用户调用
+
+#### 限定可用实例
+
+Scala集合API就是利用这项技术解决一些设计上的问题
+
+##### 应用Scala API
+
+Scala API运用一种常见的手法,将一个 **builder** 作为隐式参数传到 `map` 方法中, 该 **builder** 知道如何构造一个同种类型的新容器,这实际上与定义在 `TraversableLike` 中的 `map` 方法签名很相似, `TraversableLike` 是一个 `trait` 他被 **混入** 了那些 **可遍历(traversable)** 的容器中.
+
+```scala
+trait TraversableLike[+A, +Repr] extends ... {
+  ...
+  def map[B, That](f: A => B)(implicit bf: CanBuildForm[Repr,B,That]): That = {}
+  ...
+}
+```
+
+`CanBuildForm` 是我们所使用的 **builder** 只要存在一个隐式构造器对象,你便能够构建出一个人以你想要的新容器, 容器通过 `Repr` 持有内部元素, `B` 类型是我们想创建目标集合的类型参数,因此 `map` 操作可以输出的集合类型是由当前存在的对应的 `CanBuildForm` 构造器实例所决定的,而这些构造器在当前作用域被声明为 **隐式对象** 假如你自定义了某些容器,你希望能够复用 `TraversableLike.map` 这样的方法实现,你需要创建 `CanBuildForm` 类型,并在这些容器代码中导入他们的隐式实例.
+```scala
+package progscala2.implicits {
+    package scaladb {
+    object implicits {
+      import javadb.JRow
+
+      implicit class SRow(jrow: JRow) {
+        def get[T](colName: String)(implicit toT: (JRow,String) => T): T =
+          toT(jrow, colName)
+      }
+
+      implicit val jrowToInt: (JRow,String) => Int =
+        (jrow: JRow, colName: String) => jrow.getInt(colName)
+      implicit val jrowToDouble: (JRow,String) => Double =
+        (jrow: JRow, colName: String) => jrow.getDouble(colName)
+      implicit val jrowToString: (JRow,String) => String =
+        (jrow: JRow, colName: String) => jrow.getText(colName)
+        }
+
+            object DB {
+              import implicits._
+
+              def main(args: Array[String]) = {
+                val row = javadb.JRow("one" -> 1, "two" -> 2.2, "three" -> "THREE!")
+
+                val oneValue1: Int      = row.get("one")
+                val twoValue1: Double   = row.get("two")
+                val threeValue1: String = row.get("three")
+                // val fourValue1: Byte    = row.get("four")  // won't compile
+
+                println(s"one1   -> $oneValue1")
+                println(s"two1   -> $twoValue1")
+                println(s"three1 -> $threeValue1")
+
+                val oneValue2   = row.get[Int]("one")
+                val twoValue2   = row.get[Double]("two")
+                val threeValue2 = row.get[String]("three")
+                // val fourValue2    = row.get[Byte]("four")  // won't compile
+
+                println(s"one2   -> $oneValue2")
+                println(s"two2   -> $twoValue2")
+                println(s"three2 -> $threeValue2")
+              }
+            }
+          }
+        }
+```
+- `get[T]` 方法中引用了 `jrow` 实例,但是并没有使用 `val` 关键字声明,所以 `jrow` 不是该类的成员,但是类型的其他成员依然可以使用它.
+- 第一遍操作系统通过变量类型推导出 `T` 类型,第二种方法显示的指定了 `get[T]` 中的参数值
+- 第一行注释不会把 `byte` 隐式转换为 `Int` 或者 `Double` ,因为有歧义,但是即使没有歧义也不会通过编译,因为"both functions extract too many bytes!"(啥意思..)
+- 第二个注释便于我们回忆: 通过传入一个隐式参数以及定义符合我们允许的类型所对应的隐式值,我们就可以对用于参数化方法的类型进行限定
+
+#### 隐式证据
