@@ -2,7 +2,7 @@
 layout:     post
 title:      "[翻译]Learning Deep Nearest Neighbor Representations Using Differentiable Boundary Trees"
 author:     wineway
-tags: 		翻译
+tags: 		翻译 未完成
 subtitle:   可微分界树深度最近邻表示学习——用深度学习构造高效、可解释的最近邻分类树
 category:  project1
 visualworkflow: true

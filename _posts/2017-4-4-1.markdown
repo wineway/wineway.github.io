@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(4)"
 author:     wineway
-tags: 		Scala 隐式(implicit) 笔记
+tags: 		Scala 隐式(implicit) 笔记 未完成
 subtitle:   Scala隐式详解
 category:  project1
 visualworkflow: true
