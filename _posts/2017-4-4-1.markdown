@@ -157,3 +157,64 @@ package progscala2.implicits {
 - 第二个注释便于我们回忆: 通过传入一个隐式参数以及定义符合我们允许的类型所对应的隐式值,我们就可以对用于参数化方法的类型进行限定
 
 #### 隐式证据
+
+有时候,我们只需要限定允许的类型,并不需要额外的处理:也就是我们需要"证据"表明提出的类型满足我们的需求
+
+```scala
+trait traversableOnce[+A] {
+  ...
+  def toMap[T, U](implicit ev: <:<[A, (T, U)]): immutable.Map[T, U] = {
+    ...
+  }
+}
+```
+隐式参数 `ev` 就是我们的证据,它代表了我们必须实施的约束, `<:<` 是在 `Predef` 中定义的类型,该名字取于 `<:` 方法, `<:` 同样被用于限定类型参数,注意两个类型参数组成的类型可以用中缀表示法//这玩意貌似是个比较运算符
+
+证据的意义仅仅是为了实施某一类型的约束,我们无需定义一个隐式值来执行额外的自定义工作, `Predef` 对象还定义了一个名为 `=:=` 的**证据**类型,他可以证明证据类型的等价关系,但该类型未得到广泛的使用
+
+#### 绕开类型擦除带来的限制
+
+```scala
+object M {
+  implicit object IntMarker                                          //
+  implicit object StringMarker
+
+  def m(seq: Seq[Int])(implicit i: IntMarker.type): Unit =           //
+    println(s"Seq[Int]: $seq")
+
+  def m(seq: Seq[String])(implicit s: StringMarker.type): Unit =     //
+    println(s"Seq[String]: $seq")
+}
+
+import M._                                                           //
+m(List(1,2,3))
+```
+
+- 关于 `StringMarker.type` 单例对象类型 [宏江的博客](http://hongjiang.info/scala-type-system-singleton-type/) 有详解
+- 关于这个我觉得貌似就是单纯的做个区分方法的作用....然后再编译时确定类型,只是猜想,书上没详解,以后搞懂在回来编辑#
+
+不使用隐式 `Int` 和 `String` 的值是因为: 假设当前作用域某一模块也定义了隐式 `String` 参数,那么两个隐式参数便会导致系统出错,首先加入第二个模块并未定义默认的隐式值,而希望用户能定义适用于应用程序的隐式值,如果用户没有定义该隐式值,那么该模块便会使用其他模块的隐式值,这可能导致无法预期的行为,如果用户定义了隐式值,那么两个出现在相同作用域的隐式值将导致二义性,比较安全的做法是减少使用隐式参数及隐式值,改用那些专门为此目的设计的特有类型
+
+#### 改善报错信息
+
+我们如果试图对一个未定义对应的 `CanBuildFrom` 的目标类型调用 `map` 方法,会发生:
+```scala
+scala> case class ListWrapper(list: List[Int])
+defined class ListWrapper
+
+scala> List(1,2,3).map[Int,ListWrapper](_ * 2)
+<console>:10: error: Cannot construct a collection of type ListWrapper
+with elements of type Int based on a collection of type List[Int].
+              List(1,2,3).map[Int,ListWrapper](_*2)
+                                              ^
+```
+`map`方法中明确注解了类型 `map[Int, ListWrapper]` 使得输出是 `ListWrapper` 而不是 `List[Int]`,注意错误信息不是通常我们无法找到某一隐式参数产生的默认信息,实际上在声明 `CanBuildFrom` 指定了一个名为 `scala.annotation.implicitNotFound` 的注解,该注解指定了那些错误信息的格式字符串, `CanBuildFrom` 声明体如下
+```scala
+@implicitNotFound(msg =
+  "Cannot construct a collection of type ${To} with elements of type ${Elem}" +
+  " based on a collection of type ${From}.")
+trait CanBuildFrom[-From, -Elem, +To] {...}
+```
+你只能对那些专门为满足隐式参数而定义的,用作隐式值的类型使用这类注解,而这些注解无法用于像 `SRow.get[T]` 那样的接受隐式参数输入的方法之上,这也解释了为什么构建隐式应该使用自定义类型,而不应该使用常见类型.
+
+##### 虚类型
