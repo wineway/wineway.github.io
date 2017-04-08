@@ -1,0 +1,10 @@
+---
+layout:     post
+title:      "[笔记]Scala学习笔记(5)"
+author:     wineway
+tags: 		Scala functionprogramming 笔记 未完成
+subtitle:   Scala函数式编程入门
+category:  project1
+visualworkflow: true
+---
+## Scala函数式编程

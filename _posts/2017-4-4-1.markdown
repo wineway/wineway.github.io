@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(4)"
 author:     wineway
-tags: 		Scala 隐式(implicit) 笔记 未完成
+tags: 		Scala 隐式(implicit) 笔记
 subtitle:   Scala隐式详解
 category:  project1
 visualworkflow: true
@@ -401,11 +401,378 @@ object Interpolators {
       val jsonobj = json"{name: $name, book: $book}"                       //
       println(jsonobj)
 ```
-- .parts 返回不含插值的每段,`case keyRE(key) => key` 标记下这段
+- .parts 返回不含插值的每段,`case keyRE(key) => key` 标记下这段(坑死我了....没注意是StringContext)
 - `zip` 将两个集合中元素压缩成二元元组
 
-####表达式问题
+#### 表达式问题
 
 在不修改源代码的情况下扩展源代码的期望被称为**表达式问题(expression problem)**
 
-面向对象变成通过子 *类型化(subtyping)* 解决了这一问题,更精确的讲是 *子类型多态(subtype polymorphism)*
+面向对象变成通过子 *类型化(subtyping)* 解决了这一问题,更精确的讲是 *子类型多态(subtype polymorphism)* : 当需要对某些行为进行修改时,我们会首先编写抽象体,之后是用抽象体的继承类修改行为, Bertrand Meyer提出的 `open/closed principle` 对 `oop` 这一方法进行了概述,在这一准则中,基类声明了抽象的行为,而子类型则在不修改基类型的情况下对抽象行为进行适当的修改
+
+这个问题引发了**单一性职责原则(single responsibility principle)** 这一经典设计原则,该原则鼓励我们在定义抽象以及实现体时,只提供单一行为
+
+通过Scala隐式转换特征,我们可以得到另外一种通过静态类型实现元编程的方法,我们称之为 **类型类(type class)** Haskell率先提出这一观点,可以参考文章["A Gentle Introduction to Haskell"](https://www.haskell.org/tutorial/classes.html).如果某对象属于某类型类,那么它必须实现类型类所定义的行为,与通常意义上的类相比,类型类更接近于接口(不要和Scala常用类所混淆)
+
+### 类型类模式
+
+```scala
+case class Address(street: String, city: String)
+case class Person(name: String, address: Address)
+
+trait ToJSON {
+  def toJSON(level: Int = 0): String
+
+  val INDENTATION = "  "
+  def indentation(level: Int = 0): (String,String) =
+    (INDENTATION * level, INDENTATION * (level+1))
+}
+
+implicit class AddressToJSON(address: Address) extends ToJSON {
+  def toJSON(level: Int = 0): String = {
+    val (outdent, indent) = indentation(level)
+    s"""{
+      |${indent}"street": "${address.street}",
+      |${indent}"city":   "${address.city}"
+      |$outdent}""".stripMargin
+  }
+}
+
+implicit class PersonToJSON(person: Person) extends ToJSON {
+  def toJSON(level: Int = 0): String = {
+    val (outdent, indent) = indentation(level)
+    s"""{
+      |${indent}"name":    "${person.name}",
+      |${indent}"address": ${person.address.toJSON(level + 1)}
+      |$outdent}""".stripMargin
+  }
+}
+
+val a = Address("1 Scala Lane", "Anytown")
+val p = Person("Buck Trends", a)
+
+println(a.toJSON())
+println()
+println(p.toJson())
+```
+Scala不允许同时使用 `case` 关键字和 `implicit` 关键字,也就是说隐式类不能同时是一个 `case` 类由于 `case` 类不会执行通过隐式自动生成的代码,因此隐式 `case` 类本身就没有任何意义..
+```scala
+case class TreeNode[T](data: T, children: Seq[TreeNode[T]] = Nil)
+implicit class p[T](t: TreeNode[T]){
+  def aa :Unit = {
+    println("hello")
+  }
+}
+```
+测试了一下,这个貌似不是说 `case` 不可以隐式转换
+
+我们通过使用该机制为已经存在的类添加了方法,因此 *扩展方法(extension method)* 是类型类的另一种用途,另一方面,与面向对象继承关系中常出现的子类型多态不同, `toJSON` 方法提供的堕胎行为并未绑定类型系统,因此类型类提供的这一功能被称为 *特设多态(ad hoc polymorphism)*
+
+我们经常会有这样的错觉:如果定义了一组类,每个类只提供某一特定行为,对于大多数客户而言,这些特定行为并没什么作用,.而类型类最适用于这种情况,对于这组类应用类型类模式能够使客户从中收益,善用该模式能够在维护单一职责原则的同时平衡多个客户的需求
+
+### 隐式所导致的技术问题
+
+-  你需要花时间编写用于定义隐式的额外代码,而且编译器也必须费大量时间的处理隐式
+-  隐式转换同样会造成额外的运行开销,这是因为封装类型会引入额外的中间层,尽管编译器会内联某些方法调用,而JVM也会执行一些额外的优化,但是这样还是会有额外的开销,后面的 *值类型* 会讨论如何在编译期间消除值类型的额外运行开销.
+
+```scala
+ trait Stringizer[+T] {
+  def stringize: String
+}
+
+implicit class AnyStringizer(a: Any) extends Stringizer[Any] {
+  def stringize: String = a match {
+    case s: String => s
+    case i: Int => (i*10).toString
+    case f: Float => (f*10.1).toString
+    case other =>
+      throw new UnsupportedOperationException(s"Can't stringize $other")
+  }
+}
+
+val list: List[Any] = List(1, 2.2F, "three", 'symbol)
+
+list foreach { (x:Any) =>
+  try {
+    println(s"$x: ${x.stringize}")
+  } catch {
+    case e: java.lang.UnsupportedOperationException => println(e)
+  }
+}
+```
+这种实现非常不美观同时违背了面向对象编程的一条核心规则:你不应该使用 `switch` 语句对可能发生的变化的类型判断,相反,你应该使用多态分发任务,这类似于 `toString` 方法在Scala中的应用
+
+最后我们将列出帮助我们避免某些潜在问题的一些技巧.
+- 无论如何都要为隐式转换方法指定返回类型,否则类型推导推断出的返回类型可能会导致预料以外的结果
+- 虽然编译器会执行一些方便用户的转换,但是目前看来这些转换带来的麻烦多于益处
+>假如你为某一类型定义 `+` 方法,并试图将此方法应用到某不属于该类型的实例上,那么编译器会调用该市里的 `toString` 方法,这解释了特定情况下出现 `String` 是错误类型的奇怪错误
+> 如果有必要的话,编译器会将方法输入参数自动组合成一个元组,有时候这些行为会给人造成困扰,2.11版本现在已经会对此抛出警告信息
+
+### 隐式解析规则
+
+根据隐式所处情景不同,会存在隐式方法,隐式值和隐式类这三类隐式,在下面的讨论中使用值代替隐式:
+- Scala会解析无需输入前缀路径的类型兼容隐式值,也就是说,隐式值定义在相同作用域中,
+- Scala会解析那些导入带当前作用域的隐式值
+- 导入的隐式值优先度高于已经存在在当前作用域的隐式值
+- 存在多个可能类型兼容的的匹配,挑选匹配度最高的隐式
+- 如果两个或多个隐式值可能引发歧义,编译器错误会被触发
+- Scala库中的隐式常常会被编译器加载到作用域中,而其他语言库中定义的隐式则需要 `import`
+
+### Scala内置的各种隐式
+
+Scala 2.11库源代码中定义了300+隐式方法,隐式值和隐式类性.他们中大多数都是隐式方法,而隐式方法中多数被用于讲一个类型转换成另一个类型,接下来会分组对这些隐式类性进行讨论,让读者能够"感觉到" 隐式的类性
+
+1. `AnyVal` 类型的所有对象都定义了丰富的转换方法:(太多了,直接复制了)
+
+```scala
+ object Int {
+  ...
+  implicit def int2long(x: Int): Long = x.toLong
+  ...
+}
+// The following code snippits list these AnyVal implicit conversions. Note that because of the implicit conversion feature, the Scala grammar doesn’t need to implement the most common type conversions that other language grammars have to implement.
+// From the Byte companion object:
+implicit def byte2short(x: Byte): Short = x.toShort
+implicit def byte2int(x: Byte): Int = x.toInt
+implicit def byte2long(x: Byte): Long = x.toLong
+implicit def byte2float(x: Byte): Float = x.toFloat
+implicit def byte2double(x: Byte): Double = x.toDouble
+//From the Char companion object:
+// From the scala.Char companion object:
+implicit def char2int(x: Char): Int = x.toInt
+implicit def char2long(x: Char): Long = x.toLong
+implicit def char2float(x: Char): Float = x.toFloat
+implicit def char2double(x: Char): Double = x.toDouble
+//From the Short companion object:
+implicit def short2int(x: Short): Int = x.toInt
+implicit def short2long(x: Short): Long = x.toLong
+implicit def short2float(x: Short): Float = x.toFloat
+implicit def short2double(x: Short): Double = x.toDouble
+//From the Int companion object:
+implicit def int2long(x: Int): Long = x.toLong
+implicit def int2float(x: Int): Float = x.toFloat
+implicit def int2double(x: Int): Double = x.toDouble
+//From the Long companion object:
+implicit def long2float(x: Long): Float = x.toFloat
+implicit def long2double(x: Long): Double[…]
+//From the Float companion object:
+implicit def float2double(x: Float): Double = x.toDouble
+// The scala.math types BigInt and BigDecimal have converters from many of the AnyVal types and from the corresponding Java implementations. From the BigDecimal companion object:
+implicit def int2bigDecimal(i: Int): BigDecimal = apply(i)
+implicit def long2bigDecimal(l: Long): BigDecimal = apply(l)
+implicit def double2bigDecimal(d: Double): BigDecimal = ...
+implicit def javaBigDecimal2bigDecimal(x: BigDec): BigDecimal = apply(x)
+// The calls to apply are invocations of the BigDecimal.apply factory methods. These implicits are a convenient, alternative way of invoking these methods.
+// From the BigInt companion object:
+implicit def int2bigInt(i: Int): BigInt = apply(i)
+implicit def long2bigInt(l: Long): BigInt = apply(l)
+implicit def javaBigInteger2bigInt(x: BigInteger): BigInt = apply(x)
+//Option can be converted to a list of zero or one items:
+implicit def option2Iterable[A](xo: Option[A]): Iterable[A] = xo.toList
+```
+2. `Predef` 中定义了大多数隐式定义,其中一些隐式定义包含了 `@inline` (鼓励编译器努力将其调用内联,与之对应的是 `@noinline`)
+
+一些方法能将某一类型转化为另一类型:
+```scala
+@inline implicit def augmentString(x: String): StringOps = new StringOps(x)
+@inline implicit def unaugmentString(x: StringOps): String = x.repr
+implicit def tuple2ToZippedOps[T1, T2](x: (T1, T2))
+  = new runtime.Tuple2Zipped.Ops(x)
+implicit def tuple3ToZippedOps[T1, T2, T3](x: (T1, T2, T3))
+  = new runtime.Tuple3Zipped.Ops(x)
+implicit def genericArrayOps[T](xs: Array[T]): ArrayOps[T] = ...
+
+implicit def booleanArrayOps(xs: Array[Boolean]): ArrayOps[Boolean] =
+  = new ArrayOps.ofBoolean(xs)
+...      // Similar functions for the other AnyVal types.
+implicit def refArrayOps[T <: AnyRef](xs: Array[T]): ArrayOps[T]
+  = new ArrayOps.ofRef[T](xs)
+
+@inline implicit def byteWrapper(x: Byte) = new runtime.RichByte(x)
+...      // Similar functions for the other AnyVal types.
+
+implicit def genericWrapArray[T](xs: Array[T]): WrappedArray[T] = ...
+implicit def wrapRefArray[T <: AnyRef](xs: Array[T]): WrappedArray[T] = ...
+implicit def wrapIntArray(xs: Array[Int]): WrappedArray[Int] = ...
+...      // Similar functions for the other AnyVal types.
+
+implicit def wrapString(s: String): WrappedString = ...
+implicit def unwrapString(ws: WrappedString): String = ...
+```
+3. `scala.collection.convert` 包定义了一些 `trait` 提供了 Java 容器与 Scala 容器的转换方法,事实上出于性能考虑Scala会尽可能避免类型转换,但是目标集合的抽象体是建立在底层容器的基础上,性能影响不大
+
+```scala
+Here are the “decorations” of Scala collections as Java collections defined in DecorateAsJava. The return type annotations are wrapped to fit the page and the ju and jl are import aliases for java.lang and java.util in the actual source code for DecorateAsJava. The AsJava* types are helpers for exposing operations:
+implicit def asJavaIteratorConverter[A](i : Iterator[A]):
+  AsJava[ju.Iterator[A]] = ...
+implicit def asJavaEnumerationConverter[A](i : Iterator[A]):
+  AsJavaEnumeration[A] = ...
+implicit def asJavaIterableConverter[A](i : Iterable[A]):
+  AsJava[jl.Iterable[A]] = ...
+implicit def asJavaCollectionConverter[A](i : Iterable[A]):
+  AsJavaCollection[A] = ...
+implicit def bufferAsJavaListConverter[A](b : mutable.Buffer[A]):
+  AsJava[ju.List[A]] = ...
+implicit def mutableSeqAsJavaListConverter[A](b : mutable.Seq[A]):
+  AsJava[ju.List[A]] = ...
+implicit def seqAsJavaListConverter[A](b : Seq[A]):
+  AsJava[ju.List[A]] = ...
+implicit def mutableSetAsJavaSetConverter[A](s : mutable.Set[A]):
+  AsJava[ju.Set[A]] = ...
+implicit def setAsJavaSetConverter[A](s : Set[A]):
+  AsJava[ju.Set[A]] = ...
+implicit def mutableMapAsJavaMapConverter[A, B](m : mutable.Map[A, B]):
+  AsJava[ju.Map[A, B]] = ...
+implicit def asJavaDictionaryConverter[A, B](m : mutable.Map[A, B]):
+  AsJavaDictionary[A, B] = ...
+implicit def mapAsJavaMapConverter[A, B](m : Map[A, B]):
+  AsJava[ju.Map[A, B]] = ...
+implicit def mapAsJavaConcurrentMapConverter[A, B](m: concurrent.Map[A, B]):
+  AsJava[juc.ConcurrentMap[A, B]] = ...
+
+We can decorate Java collections as Scala collections using implicits defined in DecorateAsScala:
+
+  implicit def asScalaIteratorConverter[A](i : ju.Iterator[A]):
+    AsScala[Iterator[A]] = ...
+  implicit def enumerationAsScalaIteratorConverter[A](i : ju.Enumeration[A]):
+    AsScala[Iterator[A]] = ...
+  implicit def iterableAsScalaIterableConverter[A](i : jl.Iterable[A]):
+    AsScala[Iterable[A]] = ...
+  implicit def collectionAsScalaIterableConverter[A](i : ju.Collection[A]):
+    AsScala[Iterable[A]] = ...
+  implicit def asScalaBufferConverter[A](l : ju.List[A]):
+    AsScala[mutable.Buffer[A]] = ...
+  implicit def asScalaSetConverter[A](s : ju.Set[A]):
+    AsScala[mutable.Set[A]] = ...
+  implicit def mapAsScalaMapConverter[A, B](m : ju.Map[A, B]):
+    AsScala[mutable.Map[A, B]] = ...
+  implicit def mapAsScalaConcurrentMapConverter[A, B](m: juc.ConcurrentMap[A, B]):
+    AsScala[concurrent.Map[A, B]] = ...
+  implicit def dictionaryAsScalaMapConverter[A, B](p: ju.Dictionary[A, B]):
+    AsScala[mutable.Map[A, B]] = ...
+  implicit def propertiesAsScalaMapConverter(p: ju.Properties):
+    AsScala[mutable.Map[String, String]] = ...
+```
+尽管这些方法都是定义在 `trait` 中,不过 `JavaConverts` 对象为你提供了导入这些方法的快捷方式: `import scala.collections.JavaConverts._`
+
+4. 但是更多时候,你希望选择输出容器的类型,这时候有 `WrapAsJava` , `WrapAsScala` 中额外的一些方法:
+
+```scala
+Here are the WrapAsJava methods:
+implicit def asJavaIterator[A](it: Iterator[A]): ju.Iterator[A] = ...
+implicit def asJavaEnumeration[A](it: Iterator[A]): ju.Enumeration[A] = ...
+implicit def asJavaIterable[A](i: Iterable[A]): jl.Iterable[A] = ...
+implicit def asJavaCollection[A](it: Iterable[A]): ju.Collection[A] = ...
+implicit def bufferAsJavaList[A](b: mutable.Buffer[A]): ju.List[A] = ...
+implicit def mutableSeqAsJavaList[A](seq: mutable.Seq[A]): ju.List[A] = ...
+implicit def seqAsJavaList[A](seq: Seq[A]): ju.List[A] = ...
+implicit def mutableSetAsJavaSet[A](s: mutable.Set[A]): ju.Set[A] = ...
+implicit def setAsJavaSet[A](s: Set[A]): ju.Set[A] = ...
+implicit def mutableMapAsJavaMap[A, B](m: mutable.Map[A, B]): ju.Map[A, B] =...
+implicit def asJavaDictionary[A, B](m: mutable.Map[A, B]): ju.Dictionary[A, B]
+implicit def mapAsJavaMap[A, B](m: Map[A, B]): ju.Map[A, B] = ...
+implicit def mapAsJavaConcurrentMap[A, B](m: concurrent.Map[A, B]):
+  juc.ConcurrentMap[A, B] = ...
+Here are the WrapAsScala methods:
+implicit def asScalaIterator[A](it: ju.Iterator[A]): Iterator[A] = ...
+implicit def enumerationAsScalaIterator[A](i: ju.Enumeration[A]):
+  Iterator[A] = ...
+implicit def iterableAsScalaIterable[A](i: jl.Iterable[A]): Iterable[A] = ...
+implicit def collectionAsScalaIterable[A](i: ju.Collection[A]): Iterable[A]=...
+implicit def asScalaBuffer[A](l: ju.List[A]): mutable.Buffer[A] = ...
+implicit def asScalaSet[A](s: ju.Set[A]): mutable.Set[A] = ...
+implicit def mapAsScalaMap[A, B](m: ju.Map[A, B]): mutable.Map[A, B] = ...
+implicit def mapAsScalaConcurrentMap[A, B](m: juc.ConcurrentMap[A, B]):
+  concurrent.Map[A, B] = ...
+implicit def dictionaryAsScalaMap[A, B](p: ju.Dictionary[A, B]):
+  mutable.Map[A, B] = ...
+implicit def propertiesAsScalaMap(p: ju.Properties):
+  mutable.Map[String, String] = ...
+[source,scala]
+```
+导入这些方法:`import.scala.collections.JavaConversions._`
+
+5. Scala提供了一些 `Ordering[T]` 类型的隐式值,其中 `T` 是一个 `String` 类型值, `String` 类型是一类 `AnyVal` 类型,可以转换为 `Numeric` 类型或用户自定义的顺序之(数值类型是对作用于数值的常见操作的一种抽象),[`Ordered[T]` 中查看定义](http://www.scala-lang.org/api/current/scala/math/Ordering.html), 在 `Ordering[T]` 类型中存在以下一些隐式定义:
+
+```scala
+implicit def ordered[A <% Comparable[A]]: Ordering[A] = ...
+implicit def comparatorToOrdering[A](implicit c: Comparator[A]):Ordering[A]=...
+implicit def seqDerivedOrdering[CC[X] <: scala.collection.Seq[X], T](
+  implicit ord: Ordering[T]): Ordering[CC[T]] = ...
+implicit def infixOrderingOps[T](x: T)(implicit ord: Ordering[T]):
+  Ordering[T]#Ops = ...
+implicit def Option[T](implicit ord: Ordering[T]): Ordering[Option[T]] = ...
+implicit def Iterable[T](implicit ord: Ordering[T]): Ordering[Iterable[T]] =...
+implicit def Tuple2[T1, T2](implicit ord1: Ordering[T1], ord2: Ordering[T2]):
+   Ordering[(T1, T2)] = ...
+```
+6. 最后还有一些可以转换可用于构建 "mini-DSLs" 得病发或管理进程
+
+首先, `scala.concurrent.duration` 包提供了一些用于定义持续时间的方法
+
+```scala
+implicit def pairIntToDuration(p: (Int, TimeUnit)): Duration = ...
+implicit def pairLongToDuration(p: (Long, TimeUnit)): FiniteDuration = ...
+implicit def durationToPair(d: Duration): (Long, TimeUnit) = ...
+```
+下面列举了一些各种各样的转换方法,摘自 `scala.concurrent` 包的多个文件:
+```scala
+// scala.concurrent.FutureTaskRunner:
+implicit def futureAsFunction[S](x: Future[S]): () => S
+
+// scala.concurrent.JavaConversions:
+implicit def asExecutionContext(exec: ExecutorService):
+  ExecutionContextExecutorService = ...
+implicit def asExecutionContext(exec: Executor): ExecutionContextExecutor = ...
+
+// scala.concurrent.Promise:
+private implicit def internalExecutor: ExecutionContext = ...
+
+// scala.concurrent.TaskRunner:
+implicit def functionAsTask[S](fun: () => S): Task[S] = ...
+
+// scala.concurrent.ThreadPoolRunner:
+implicit def functionAsTask[S](fun: () => S): Task[S] = ...
+implicit def futureAsFunction[S](x: Future[S]): () => S = ...
+```
+
+最后,`Process` 提供了一些与UNIX shell命令类似的方法,以支持操作系统进程操作:
+```scala
+ implicit def buildersToProcess[T](builders: Seq[T])(
+  implicit convert: T => Source): Seq[Source] = ...
+implicit def builderToProcess(builder: JProcessBuilder): ProcessBuilder = ...
+implicit def fileToProcess(file: File): FileBuilder = ...
+implicit def urlToProcess(url: URL): URLBuilder = ...
+implicit def stringToProcess(command: String): ProcessBuilder = ...
+implicit def stringSeqToProcess(command: Seq[String]): ProcessBuilder = ...
+```
+
+### 合理使用隐式
+
+在构建DSL以及简化代码的API过程中,隐式参数及只是一种非常强大的工具,不过由于传递隐式参数以及隐式值几乎是不可见的,这就增加了代码的理解难度,所以我们应该合理使用隐式
+
+有一种可以提高隐式可见性的方法,即将隐式值统一放到名为 `implicit` 的特殊包或名为 `Implicits` 的对象中,这种方式使得读者一旦遇到导入语句中的 `implicit` 字样便会留意除了Scala内置隐式外还存在一些其他的隐式
+
+--------
+附录: xjb写的代码,待修改
+```scala
+case class TreeNode[T](data: T, children: Seq[TreeNode[T]] = Nil)
+object TreeNode {
+  var tmp: Seq[String] = Nil
+  def pr: PartialFunction[Any,Seq[String]] = {
+    case a: String => tmp = tmp:+a;tmp
+    case a+:Nil => pr(a)
+    case a:Seq[Any] => pr(a.head);pr(a.tail)
+  }
+
+  def asciiDisplay(root: TreeNode[String]): Seq[String] = {
+    def build(root: TreeNode[String], blank: Int = 0, realBlank: String =" "): Seq[Any] = root match {
+      case TreeNode(_,Nil) => s"${if(blank<2){realBlank * blank}else{""}}${if(blank>1){" |"+(realBlank*(blank-2))}else{""}}+-${root.data}"+:Nil
+      case x => s"${if(blank<2){realBlank * blank}else{""}}${if(blank>1){" |"+(realBlank*(blank-2))}else{""}}+-${root.data}" +: (root.children.map(build(_, blank+1)))
+    }
+    pr(build(root))
+  }
+}
+```
+--------------
+`A <% B` : 表示A一定可以转换为B(我记得这个记过啊..怎么找不到)
