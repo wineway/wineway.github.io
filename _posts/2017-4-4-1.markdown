@@ -217,4 +217,195 @@ trait CanBuildFrom[-From, -Elem, +To] {...}
 ```
 你只能对那些专门为满足隐式参数而定义的,用作隐式值的类型使用这类注解,而这些注解无法用于像 `SRow.get[T]` 那样的接受隐式参数输入的方法之上,这也解释了为什么构建隐式应该使用自定义类型,而不应该使用常见类型.
 
-##### 虚类型
+#### 虚类型
+
+我们之前已经学习了像 `CanBuildFrom` 那种可以添加行为的隐式参数,也使用了已经定义好的可作为 `API` 调用时的隐式值,如: 作用于集合的 `toMap` 方法和 `<:<` 类型隐式实例
+
+接下来我们要进行的步骤是移除所有实例,仅留下需要的类型,这类定义好的没有任何实例的类型被称为 **虚类型(phantom type)** ,他仅表明我们只关心类型本身,表明我们不会使用该类型的任何实例
+
+```scala
+// A workflow for payroll calculations.
+
+package progscala.implicits.payroll
+
+sealed trait PreTaxDeductions
+sealed trait PostTaxDeductions
+sealed trait Final
+
+// For simplicity, use Float for money. Not recommended...
+case class Employee(
+  name: String,
+  annualSalary: Float,
+  taxRate: Float,  // For simplicity, just 1 rate covering all taxes.
+  insurancePremiumsPerPayPeriod: Float,
+  _401kDeductionRate: Float,  // A pretax, retirement savings plan in the USA.
+  postTaxDeductions: Float)
+
+case class Pay[Step](employee: Employee, netPay: Float)
+
+object Payroll {
+  // Biweekly paychecks. Assume exactly 52 weeks/year for simplicity.
+  def start(employee: Employee): Pay[PreTaxDeductions] =
+    Pay[PreTaxDeductions](employee, employee.annualSalary / 26.0F)
+
+  def minusInsurance(pay: Pay[PreTaxDeductions]): Pay[PreTaxDeductions] = {
+    val newNet = pay.netPay - pay.employee.insurancePremiumsPerPayPeriod
+    pay copy (netPay = newNet)
+  }
+
+  def minus401k(pay: Pay[PreTaxDeductions]): Pay[PreTaxDeductions] = {
+    val newNet = pay.netPay - (pay.employee._401kDeductionRate * pay.netPay)
+    pay copy (netPay = newNet)
+    }
+
+      def minusTax(pay: Pay[PreTaxDeductions]): Pay[PostTaxDeductions] = {
+        val newNet = pay.netPay - (pay.employee.taxRate * pay.netPay)
+        pay copy (netPay = newNet)
+      }
+
+      def minusFinalDeductions(pay: Pay[PostTaxDeductions]): Pay[Final] = {
+        val newNet = pay.netPay - pay.employee.postTaxDeductions
+        pay copy (netPay = newNet)
+      }
+    }
+
+    object CalculatePayroll {
+      def main(args: Array[String]) = {
+        val e = Employee("Buck Trends", 100000.0F, 0.25F, 200F, 0.10F, 0.05F)
+        val pay1 = Payroll start e
+        // 401K and insurance can be calculated in either order.
+        val pay2 = Payroll minus401k pay1
+        val pay3 = Payroll minusInsurance pay2
+        val pay4 = Payroll minusTax pay3
+        val pay  = Payroll minusFinalDeductions pay4
+        val twoWeekGross = e.annualSalary / 26.0F
+        val twoWeekNet   = pay.netPay
+        val percent      = (twoWeekNet / twoWeekGross) * 100
+        println(s"For ${e.name}, the gross vs. net pay every 2 weeks is:")
+        println(
+          f"  $$${twoWeekGross}%.2f vs. $$${twoWeekNet}%.2f or ${percent}%.1f%%")
+      }
+    }
+```
+这些 `sealed trait` 本身不包含数据,,而且我们无法在其他文件中实现这些 `trait` ,因此这些 `trait` 只能起到标志作用
+
+上述代码不是十分简洁,我们引入了 **管道** 操作符 `|>`(DSL)
+```scala
+package progscala.implicits.payroll
+import scala.language.implicitConversions
+
+object Pipeline {
+  implicit class toPiped[V](value:V) {
+    def |>[R] (f : V => R) = f(value)
+  }
+}
+
+object CalculatePayroll2 {
+  def main(args: Array[String]) = {
+      import Pipeline._
+        import Payroll._
+
+        val e = Employee("Buck Trends", 100000.0F, 0.25F, 200F, 0.10F, 0.05F)
+        val pay = start(e) |>
+          minus401k        |>
+          minusInsurance   |>
+          minusTax         |>
+          minusFinalDeductions
+        val twoWeekGross = e.annualSalary / 26.0F
+        val twoWeekNet   = pay.netPay
+        val percent      = (twoWeekNet / twoWeekGross) * 100
+        println(s"For ${e.name}, the gross vs. net pay every 2 weeks is:")
+        println(
+          f"  $$${twoWeekGross}%.2f vs. $$${twoWeekNet}%.2f or ${percent}%.1f%%")
+      }
+    }
+```
+ `|>` 对 `Payroll.minus401k(pay1)` 转化为 `pay1 |> Payroll.minus401k`
+
+#### 隐式参数遵循规则
+
+|隐式参数遵循规则|
+|:-------|
+|1. 只有最后一个参数列表中允许出现隐式参数,这也适用于只有一个参数列表的情况|
+|2. `implicit` 关键字必须出现在参数列表最左边,而且只能出现一次,列表中出现在 `implicit` 之后的参数都不是 "非隐式" 的|
+|3. 假如参数列表以 `implicit` 关键字开头,那么所有参数都是隐式的|
+
+### 隐式转换
+
+创建 `pair` 的几种方法:
+```scala
+(1, "one")
+1 -> "one"
+1 → "one"
+Tuple2(1,"one")
+Pair(1,"one") //Scala不推荐这种方法
+```
+事实上,Scala根本不知道 `a -> b` 意味着什么,这种字面量格式实际上运用了方法 `->` 和一个特殊的Scala特性,隐式转换,通过隐式转换我们可以在任意两种类型值中插入函数 `->` ,与此同时,由于 `a -> b` 并不是元组,Scala必须用过某些方试将其转换为元祖
+```scala
+implicit final class ArrowAssoc[A](val self: A) {
+  def -> [B](y: B):Tuple2[A, B] = Tuple2(self, y)
+}
+```
+由于 `ArrowAssoc` 被声明为 `implicit` 类,所以编译器执行以下逻辑:
+- 编译器发现我们试图对 `String` 对象之行 `->` 方法
+- 由于 `String` 未定义 此方法,编译器将检查当前作用域是否存在定义了该方法的隐式转换
+- 编译器发现 `ArrowAssoc` 类
+- 创建 `ArrowAssoc` 对象,并传入 `"one"` 字符串
+- 编译器将解析表达式中 `->` 部分代码,并确认整个表达式类型与 `Map.apply` 方法的预期类型吻合,即两者均为 `pair` 实例
+
+>尽管隐式方法仍被使用,但我们现在只有将某类型转换为存在类型是才使用,滥用隐式方法会导致难以调试的行为,如果你希望启用此类特性,你应该通过 `import scala.language.implicitConversions` 开启此特性,也可以通过全局的编译器选项`-language: implicitConversions` 开启此特性
+
+以下是编译器进行查找和使用转换方法时的转换规则
+1. 加入调用的对象和方法成功通过了组合类型检查,那么类型转换不会执行
+1. 编译器只会考虑用了 `implicit` 关键字的类和方法
+1. 编译器只会考虑当前作用域内的隐式类隐式方法,以及目标类型的伴生对象中定义的隐式方法(后续部分继续讨论此种情况)
+1. 隐式方法无法穿行处理,我们无法通过一个中间类型,使用串行的饮食方法将起始类型转换为目标类型,编译器执行隐式转换时只会考虑那些接受单一类型实例输入且返回目标类型实例的方法
+1. 假如当前适合多条转换方法,那么将不会执行转换操作
+
+注意, 规则3提到伴生对象中定义的隐式方法有以下含义:
+- 假如隐式转换出现在当前作用域之外,不会执行该隐式转换
+- 假如在当前作用域内,意味着隐式转换是在封闭作用域内声明的,或当前作用域已经导入隐式转换所在的其他作用域,比方说导入了其他作用域中某一个定义了一些隐式转换的对象
+
+不过当需要执行转换时,假如转换的目标类型的伴生对象中定义了转换方法,那么编译器会自动导入伴生对象的作用域,并最后查找该作用域(有的话就不会查找)
+
+>使用 `implicit` 对象或名为 `implicits` 的特殊包的好处是:读者能更清楚哪个 `import` 语句导入了代码使用的自定义隐式
+
+在Scala自带的"封装"类型中定义的隐式转换会一直出现在当前作用域中,这些隐式转换更确切的将被定义在 `Predef` 中
+
+`Range` 类型也是一类封装类型,例如: `1 to 10 by 3` 中`to` , `by` 以及Scala独有的 `util` 单词都是封装对象中的方法,他们并不是Scala关键字,例如 `scala.runtime.RichInt` 封装了 `Int` 类型,它包含这些方法,Scala在同一个包中定义了适合于其他数值类型的类似封装类型:`RichLong`,`RichFloat`等,而 `scala.math.BigInt` 和 `scala.math.BigDecimal`本身就是Java同名类的封装类型,因此他们没有自己的封装类型,他们本身实现了 `to` ,`util`,和 `by` 方法
+
+#### 构建独有的字符串插入器
+
+```scala
+import scala.util.parsing.json._
+
+object Interpolators {
+  implicit class jsonForStringContext(val sc: StringContext) {       //
+    def json(values: Any*): JSONObject = {                           //
+      val keyRE = """^[\s{,]*(\S+):\s*""".r                          //
+      val keys = sc.parts map {                                      //
+        case keyRE(key) => key
+        case str => str
+      }
+      val kvs = keys zip values                                      //
+      JSONObject(kvs.toMap)
+        }
+        }
+      }
+
+      import Interpolators._
+
+      val name = "Dean Wampler"
+      val book = "Programming Scala, Second Edition"
+
+      val jsonobj = json"{name: $name, book: $book}"                       //
+      println(jsonobj)
+```
+- .parts 返回不含插值的每段,`case keyRE(key) => key` 标记下这段
+- `zip` 将两个集合中元素压缩成二元元组
+
+####表达式问题
+
+在不修改源代码的情况下扩展源代码的期望被称为**表达式问题(expression problem)**
+
+面向对象变成通过子 *类型化(subtyping)* 解决了这一问题,更精确的讲是 *子类型多态(subtype polymorphism)*
