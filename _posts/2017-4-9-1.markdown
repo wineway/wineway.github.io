@@ -3,8 +3,178 @@ layout:     post
 title:      "[笔记]Scala学习笔记(5)"
 author:     wineway
 tags: 		Scala FunctionProgramming 笔记 未完成
-subtitle:   Scala函数式编程入门
+subtitle:   Scala函数式编程基本概念
 category:  project1
 visualworkflow: true
 ---
-## Scala函数式编程
+# Scala函数式编程
+
+函数式编程主要可以为当前面临的三大挑战提供解决方案:
+1. 并发的普遍需求,有了并发,我们可以对应用进行水平拓展,并提供其对抗服务器故障的能力
+2. 编写数据导向程序的要求.如今大数据的发展趋势,使得有效处理海量数据的技术被提高到了更重要的位置
+3. 编写无bug程序的要求,函数式编程从数学角度为我们提供了新的工具
+
+所有函数式语言都提供了某些机制可以帮助我们完成I/O操作,以及其他必须涉及状态修改的行为,对于Scala这种非常灵活的混合范式语言,我们必须审慎规范的在必须修改状态时才对状态做修改,剩下的部分应该尽量做到无副作用.
+
+|为什么要用 `Lambda` 这个名字|
+|-------|
+|用lambda来表示匿名函数来源于与lambda微积分,Alonzo Church在数学的可计算性理论中首先研究了lambda微积分,在lambda微积分中,将函数的特性总结为:函数是绑定了值,或用其他表达式替换变量时可被求值或可被应用(apply)的计算行为抽象,lambda微积分也为函数表达式的简化,如何用值代替变量等定义了规则|
+
+```scala
+def m1 (multiplier: Int => Int) = {
+  (1 to 10) filter (_ % 2 == 0) map multiplier reduce (_ * _)
+}
+
+def m2: Int => Int = {
+  val factor = 2
+  val multiplier = (i: Int) => i * factor
+  multiplier
+}
+
+m1(m2)
+```
+`m2` 返回的是一个闭包
+
+```scala
+object Multiplier {
+  var factor = 2
+  // Compare: val multiplier = (i: Int) => i * factor
+  def multiplier(i: Int) = i * factor
+}
+
+(1 to 10) filter (_ % 2 == 0) map Multiplier.multiplier reduce (_ * _)
+
+Multiplier.factor = 3
+(1 to 10) filter (_ % 2 == 0) map Multiplier.multiplier reduce (_ * _)
+```
+除了 `multiplier` 是方法以外,我们对其使用与函数相同,因此同时并没有引用 `this` 我们在需要函数的地方使用了方法,我们就称该方法被提升为函数
+
+#### 内部与外部的纯粹性
+
+即使在"纯粹"的函数库中,也会常常执行内部优化,如缓存,但缓存引入了副作用,但是这种状态对用户来说是不可见的.函数的实现只需要负责"线程安全"和"透明引用"
+
+## 函数式编程的数据结构
+
+函数式编程中,往往大量使用一些核心数据结构和算法,这些也是函数是语言的重点,不同语言有不同的核心数据结构,但大致包含同一个子集,包含列表(List),向量(Vector),等序列型集合,数组(array),映射(map),集合(set).每种类型都支持同一批无副作用的高阶函数,成为 *组合器(combinator)* :如:map,filter,fold等函数.你可以根据自身对数据访问的需要及性能的要求,选用合适的集合类型用同样的组合器去操作数据
+
+### 序列
+
+许多数据结构式序列型的,也就是说,元素可以按照特定的顺序访问,如:元素的插入顺序或其他特定的顺序 [`collection.Seq`](http://www.scala-lang.org/api/current/#scala.collection.Seq)是一个 `trait` 是所有可变不可变序列类型的抽象 其子 `trait` [`collection.mutable.Seq`](http://www.scala-lang.org/api/current/#scala.collection.mutable.Seq)和[`collection.immutable.Seq`](http://www.scala-lang.org/api/current/#scala.collection.immutable.Seq)分别对用可变\不可变序列
+
+- 从旧列表中创建新列表的操作复杂度是O(1),计算列表的长度操作室O(N)
+- `Nil` 与 `List.empty[Nothing]` 是等价的
+- 可以使用 `++` 将两个列表(或其他序列类型)连接起来,`val list5 = list4 ++ list3`
+- 不推荐方法将列表作为参数或返回值,而应使用 `Seq` 有更好的泛用性
+- 当你对伴随对象使用`Seq.apply` 方法时,将创建出一个 `List` 因为 `Seq` 只是一个特质,而不是具体的类
+- 大部分集合类型的伴随对象都使用了 `empty` 创建该类型的空实例
+- scala中的;列表是不可变得,不过他定义了其他的可变列表类型 [`ListBuffer`](http://www.scala-lang.org/api/current/scala/collection/mutable/ListBuffer.html),[MutableList](http://www.scala-lang.org/api/current/scala/collection/mutable/MutableList.html),只有当必须修改元素时才可以使用可变类型
+
+你也可以考虑使用 [`immutable.Vector`](http://www.scala-lang.org/api/current/scala/collection/immutable/Vector.html)代替 `List` ,访问 `Vector` 所有元素时间复杂度都是O(1)
+```scala
+scala> val vect1 = Vector("Programming", "Scala")
+vect1: scala.collection.immutable.Vector[String] = Vector(Programming, Scala)
+
+scala> val vect2 = "People" +: "should" +: "read" +: vect1
+vect2: ...Vector[String] = Vector(People, should, read, Programming, Scala)
+
+scala> val vect3 = "Programming" +: "Scala" +: Vector.empty
+vect3: ...Vector[String] = Vector(Programming, Scala)
+
+scala> val vect4 = "People" +: "should" +: "read" +: Vector.empty
+vect4: ...Vector[String] = Vector(People, should, read)
+
+scala> val vect5 = vect4 ++ vect3
+vect5: ...Vector[String] = Vector(People, should, read, Programming, Scala)
+However, we also get constant-time indexing.
+
+scala> vect5(3)
+res0: String = Programming
+```
+为了鼓励程序员使用不可变集合类型, `Predef` 及 `Predef` 中使用的其他类型的不可变集合类型时,不需要显示的导入或使用全路径导入,在上述规则中,Scala只暴露了不可变集合类型,但实际上Scala导入的是 `scala.collection.Seq` 主要原因是方便处理Java的 `Array` 为 `Seq` 类型,这样一来,假设并发库中的方法将 `Seq` 作为参数,但你只希望传入不可变集合类型,此时 `Seq` 的使用就产生了一个可能导致 线程安全问题的漏洞,因为客户端可以传入可变集合类型,如 `Array`
+
+- 注意:`Seq` 默认的类型是 `scala.collection.Seq` 因此传入的 `Seq` 实例可能是可变的,所以线程是不安全的
+
+--------
+实际上现在已经是2.12了,我有时间查一下文档,这段暂时待修改:
+Scala计划在2.12版本中将  `scala.Seq` 改为 `scala.collection.immutable.Seq` 指向的别名
+在那之前,你想使用 `scala.collection.immutable.Seq` 你可以这样:
+```scala
+package progscala.fp
+package object datastructs {
+  type Seq[+A] = scala.collection.immutable.Seq[A]
+  val Seq = scala.collection.immutable.Seq
+}
+```
+一个包中只能有一个包对象,文件名为 `package.scala` ,`val Seq` 语句将伴随对象引入作用于,于是类似 `Seq(1,2,3,4)` 将会触发 `scala.collection.immutable.Seq.apply` 方法的调用
+
+在 `fp.datastructs` 下的包如何处理呢,如果你想要在该层级中实现一个包,可以使用包继承语句:
+```scala
+package fp.datastructs   // Make Seq refer to immutable.Seq
+package asubpackage      // Stuff in this package
+package asubsubpackage   // The package I'm working on...
+```
+-----
+### 映射表(Maps)
+
+在其他语言中也叫 `hash map`, `hash` , `dictionary`, `Maps` 用于存储键值对,和 `map` 方法有一定程度的类似,前者每个键都对应一个键值,后者每个输入元素都对应一个输出元素
+
+`Maps` 可以用一下方法初始化:
+```scala
+scala> val stateCapitals = Map(
+     |   "Alabama" -> "Montgomery",
+     |   "Alaska"  -> "Juneau",
+     |   "Wyoming" -> "Cheyenne")
+stateCapitals: scala.collection.immutable.Map[String,String] =
+  Map(Alabama -> Montgomery, Alaska -> Juneau, Wyoming -> Cheyenne)
+
+scala> val lengths = stateCapitals map {
+     |   kv => (kv._1, kv._2.length)
+     | }
+lengths: scala.collection.immutable.Map[String,Int] =
+  Map(Alabama -> 10, Alaska -> 6, Wyoming -> 8)
+
+scala> val caps = stateCapitals map {
+     |   case (k, v) => (k, v.toUpperCase)
+     | }
+
+caps: scala.collection.immutable.Map[String,String] =
+  Map(Alabama -> MONTGOMERY, Alaska -> JUNEAU, Wyoming -> CHEYENNE)
+
+scala> val stateCapitals2 = stateCapitals + (
+     |   "Virginia" -> "Richmond")
+stateCapitals2: scala.collection.immutable.Map[String,String] =
+  Map(Alabama -> Montgomery, Alaska -> Juneau,
+  Wyoming -> Cheyenne, Virginia -> Richmond)
+
+scala> val stateCapitals3 = stateCapitals2 + (
+     |   "New York" -> "Albany", "Illinois" -> "Springfield")
+stateCapitals3: scala.collection.immutable.Map[String,String] =
+  Map(Alaska -> Juneau, Virginia -> Richmond, Alabama -> Montgomery,
+  New York -> Albany, Illinois -> Springfield, Wyoming -> Cheyenne)
+
+```
+我们可以使用 `+` 方法在 `Map` 中添加一个或多个键值对,如上第三条命令,如果漏掉 `()` 那么将对 `Maps` 调用 `toString` 方法(因为没有别的办法),然后调用 `->` 方法构造一个键值对
+
+实际上我们不能调用 `new Map("xx"->"xx")` 因为他是一个 `trait` ,相反 `Map.apply` 则会根据给定输入数据用最佳方式构造实例, `Map.apply` 通常根据键值对个数来构造实例,例如构造包含一个乃至更多个键值对的映射表
+
+与 `List` 不同, `Map` 有可变和不可变两种实现分别是: `scala.collection.immutable.Map[A,B]` 和 `scala.collection.mutable.Map[A,B]`,可变实现需要导入,两种实现都定义了 `+`, `_` 操作用于增加和移除元素,以及 `++` 和 `--` 操作来增加和移除 `Iterator` 中定义的元素
+
+### 集合(set)
+
+集合是无序集合类型的一个例子,集合要求元素有唯一性:
+```scala
+scala> val states = Set("Alabama", "Alaska", "Wyoming")
+states: scala.collection.immutable.Set[String] = Set(Alabama, Alaska, Wyoming)
+
+scala> val lengths = states map (st => st.length)
+lengths: scala.collection.immutable.Set[Int] = Set(7, 6)
+
+scala> val states2 = states + "Virginia"
+states2: scala.collection.immutable.Set[String] =
+  Set(Alabama, Alaska, Wyoming, Virginia)
+
+scala> val states3 = states2 + ("New York", "Illinois")
+states3: scala.collection.immutable.Set[String] =
+  Set(Alaska, Virginia, Alabama, New York, Illinois, Wyoming)
+```
+类似 `map` 特质 `scala.collection.Set` 之定义不可变操作的方法,对于具体的可变不可变集合,分别派生了特质 `scala.collection.immut⁠able.Set` 和 `scala.collection.mutable.Set` 可变实现需要导入,两种实现都定义了 `+`, `_` 操作用于增加和移除元素,以及 `++` 和 `--` 操作来增加和移除 `Iterator` 中定义的元素

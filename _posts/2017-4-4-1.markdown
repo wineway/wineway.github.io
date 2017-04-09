@@ -508,6 +508,20 @@ list foreach { (x:Any) =>
 >假如你为某一类型定义 `+` 方法,并试图将此方法应用到某不属于该类型的实例上,那么编译器会调用该市里的 `toString` 方法,这解释了特定情况下出现 `String` 是错误类型的奇怪错误
 > 如果有必要的话,编译器会将方法输入参数自动组合成一个元组,有时候这些行为会给人造成困扰,2.11版本现在已经会对此抛出警告信息
 
+```scala
+scala> def m(pair:Tuple2[Int,String]) = println(pair)
+
+scala> m(1, "two")
+<console>:9: warning: Adapting argument list by creating a 2-tuple:
+  this may not be what you want.
+        signature: m(pair: (Int, String)): Unit
+  given arguments: 1, "two"
+ after adaptation: m((1, "two"): (Int, String))
+              m(1,"two")
+               ^
+(1,two)
+```
+
 ### 隐式解析规则
 
 根据隐式所处情景不同,会存在隐式方法,隐式值和隐式类这三类隐式,在下面的讨论中使用值代替隐式:

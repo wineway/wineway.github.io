@@ -16,7 +16,23 @@ visualworkflow: true
 
 > 尾递归: 一个调用自身的方法,有可能被子类中同名方法覆盖时尾递归是无效的
 
-> 尾递归的trampoline优化: 一次调用各个函数完成一系列函数之间的循环,可以转化为循环?结果下一章说Scala编译器不对trampoline优化...
+> 尾递归的trampoline优化: 一次调用各个函数完成一系列函数之间的循环,可以转化为循环?结果下一章说Scala编译器不对trampoline优化...(懂了,这里需要使用scala库中的一个尾递归对象 `scala.util.control.TailCalls._`)
+
+示例代码:
+```scala
+import scala.util.control.TailCalls._
+
+def isEven(xs: List[Int]): TailRec[Boolean] =
+  if (xs.isEmpty) done(true) else tailcall(isOdd(xs.tail))
+
+def isOdd(xs: List[Int]): TailRec[Boolean] =
+ if (xs.isEmpty) done(false) else tailcall(isEven(xs.tail))
+
+for (i <- 1 to 5) {
+  val even = isEven((1 to i).toList).result
+  println(s"$i is even? $even")
+}
+```
 
 ### 一个示例
 
