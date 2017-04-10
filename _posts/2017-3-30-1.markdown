@@ -65,8 +65,10 @@ def abs[A](n: A): A =
 ### 偏应用函数与偏函数
 
 - 偏函数: 并不处理所有可能输入,只处理和至少case语句匹配的输入,类型为:PartialFunction[Any, Type]
+- 偏应用函数: 偏应用函数是一个表达是,带部分而非全部参数列表的函数,返回只是一个新函数,新函数负责携带剩下的参数列表,
 
-如果函数输入与所有语句都不匹配,跑出MatchError错误.
+> 如果偏函数输入与所有语句都不匹配,跑出MatchError错误.
+> 对于拥有多个参数列表的函数而言,你给出了部分所需的参数,为了避免潜在的歧义,scala要求在后面加上 `_`,来告诉编译器你想要定义一个新函数,数以这个特性只对函数的多个参数列表有效
 
 ### 通过类型实现多态
 
@@ -141,6 +143,73 @@ object List {
 
 >implicit: 使方法或变量值可以用于隐含转换;将方法参数标记为可选的,只要在调用该方法时,作用于内有类型匹配的候选对象,就会使用该对象作为参数.
 
+我们可以使用 `val cat3curried = (cat3 _).curried` 对 `cat3` 函数柯里化,也可以使用 `Function` 中的一个方法对函数"去柯里化" `val cat3Uncurried = Function.uncurried(cat3curried)`
 
+curry 化一个实际用途是对特定类型数据函数特殊化:
+```scala
+scala> def multiplier(i: Int)(factor: Int) = i * factor
+multiplier: (i: Int)(factor: Int)Int
+
+scala> val byFive = multiplier(5) _
+byFive: Int => Int = <function1>
+
+scala> val byTen = multiplier(10) _
+byTen: Int => Int = <function1>
+
+scala> byFive(2)
+res8: Int = 10
+
+scala> byTen(2)
+res9: Int = 20
+```
+Curry化与偏应用函数是紧密相关的两个概念,此外还有一些值得了解的函数转化形式:
+```scala
+scala> val multTupled = Function.tupled(mult _)
+multTupled: ((Double, Double, Double)) => Double = <function1>
+
+scala> multTupled(d3)
+res11: Double = 31.944000000000003
+
+scala> val multUntupled = Function.untupled(multTupled)
+multUntupled: (Double, Double, Double) => Double = <function3>
+
+scala> multUntupled(d3._1, d3._2, d3._3)
+res12: Double = 31.944000000000003
+```
+注意 `mult` 是如何传递给 `Function.tupled` 的,但是假如我们将得到的函数值传递给他的其他方法时,就不再需要这种语法了,这种语法现象是oo的方法和fp的函数混合的结果
+
+最后,偏函数与返回 `Option` 的函数之间是可以相互转化的:
+```scala
+scala> val finicky: PartialFunction[String,String] = {
+     |   case "finicky" => "FINICKY"
+     | }
+finicky: PartialFunction[String,String] = <function1>
+
+scala> finicky("finicky")
+res13: String = FINICKY
+
+scala> finicky("other")
+scala.MatchError: other (of class java.lang.String)
+  ...
+
+scala> val finickyOption = finicky.lift
+finickyOption: String => Option[String] = <function1>
+
+scala> finickyOption("finicky")
+res14: Option[String] = Some(FINICKY)
+
+scala> finickyOption("other")
+res15: Option[String] = None
+
+scala> val finicky2 = Function.unlift(finickyOption)
+finicky2: PartialFunction[String,String] = <function1>
+
+scala> finicky2("finicky")
+res16: String = FINICKY
+
+scala> finicky2("other")
+scala.MatchError: other (of class java.lang.String)
+  ...
+```
 
 ## 基于 list 的递归并泛化为高阶函数

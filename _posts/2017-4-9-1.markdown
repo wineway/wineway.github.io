@@ -178,3 +178,341 @@ states3: scala.collection.immutable.Set[String] =
   Set(Alaska, Virginia, Alabama, New York, Illinois, Wyoming)
 ```
 类似 `map` 特质 `scala.collection.Set` 之定义不可变操作的方法,对于具体的可变不可变集合,分别派生了特质 `scala.collection.immut⁠able.Set` 和 `scala.collection.mutable.Set` 可变实现需要导入,两种实现都定义了 `+`, `_` 操作用于增加和移除元素,以及 `++` 和 `--` 操作来增加和移除 `Iterator` 中定义的元素
+
+## 遍历,映射,过滤,折叠与归约
+
+### 遍历
+
+Scala容器的标准便利方法是 `foreach` `foreach` 定义于 `scala.collection.IterableLike` 中,签名为:
+```scala
+trait IterableLike[A] {
+  ...
+  def foreach[U](f: A => U):Unit = {...}
+  ...
+  }
+```
+`IterableLike` 的部分子类型可能会重定义该方法,以利用程序的本地信息,获得更好的性能, `foreach` 函数的输出类型是 `Unit` 因此 `foreach` 是个完全副作用高阶函数.复杂度为 O(n)
+>匿名函数中运用模式匹配实际上定义了一个偏函数
+
+一旦有了 `foreach` 我们就可以实现其他接下来要讨论的不带副作用的操作,这些操作时函数值编程的标志:映射,过滤,折叠,规约
+
+### 映射
+
+`map` 方法定义于 `scala.collection.IterableLike` 被大部分集合类型继承,签名如下:
+```scala
+trait IterableLike[A] {
+  ...
+  def map[B, That](f: A => B)(implicit bf: CanBuildFrom[Repr, B, That]): That
+  ...
+}
+```
+`That` 是输入集合类型(AB是元素类型),事实上与输入集合类型相同,隐含参数的存在意味着我们可以用 `map` 的输出和函数 `f` 构造一个 `That` ,同时 `bf: CanBuildFrom` 本身也负责构建, `Repr` 是内部用来表示集合元素的.
+>建议阅读集合类型代码(有空看,标记一下)
+
+```scala
+object Combinators1 {
+  def map[A,B](list: List[A])(f: (A) ⇒ B): List[B] = list map f
+}
+(I’m cheating and using List.map to implement the function…)
+What if we exchanged the argument lists?
+object Combinators {
+  def map[A,B](f: (A) ⇒ B)(list: List[A]): List[B] = list map f //标记
+}
+Finally, let’s use this function in a REPL session:
+
+scala> object Combinators {
+     |   def map[A,B](f: (A) ⇒ B)(list: List[A]): List[B] = list map f
+     | }
+defined module Combinators
+
+scala> val intToString = (i:Int) => s"N=$i"
+intToString: Int => String = <function1>
+
+scala> val flist = Combinators.map(intToString) _
+flist: List[Int] => List[String] = <function1>
+
+scala> val list = flist(List(1,2,3,4))
+list: List[String] = List(N=1, N=2, N=3, N=4)
+```
+
+我们用 `map` 将一个类型为 `Int => String` 的函数提升为类型是 `List[Int] => List[String]` 的函数
+
+不幸的是我们并不能直接用Scala标准库的 `map` 方法达成这一目的,因为 `map` 是实例方法,所以我们无法用它来为所有的 `List` 实例(标记..这和实例方法有啥关系..)
+
+也许这是Scala采用面向对象和函数式混合范式的结果,,但这个用法的场景并不多见,大部分时候,你会有一个集合类型的实例,然后你可以指定一个函数参数来调用 `map` 方法,以创建一个新的集合实例,希望将一个普通函数提升为操作集合的函数,输入一个集合实例可以输出一个新实例,这种应用不常见.
+
+#### 扁平映射(flatMap)
+
+`flatMap` 是 `map` 操作的一种推广,在 `flatMap` 中,我们对原始集合中的每个元素都分别产生零个或多个元素,我们传入一个函数,该函数的每个输入返回一个集合,而不是一个元素,然后 `flatMap` 把产生的多个集合压扁为一个集合,签名如下(同时给了 `map` 作为对比):
+```scala
+def flatMap[B](f: A => GenTraversableOnce[B]): Traversable[B]
+def map[B](f: (A) => B): Traversable[B]
+```
+
+注意 `map` 中函数 `f` 签名为 `A => B` ,现在我们需要返回一个集合, `GenTraversableOnce` 就是这样的接口,他表示至少遍历一次的任何实体.
+
+```scala
+val list = List("hello","world")
+list flatMap (s => s.toList)
+```
+对每个字符串调用 `toList` 生成 `List[Char]` 这些嵌套的列表最终被整合成一个 `List[Char]` 事实上, `flatMap` 很像先调用一个 `map` 然后再调用 `flatten`:
+```scala
+val list = List("hello","world") map (s => s.toList)
+list.flatten
+```
+`flatMap` 比第二种方法更高效,因为不需要创建临时变量 `List[List(Char)]` ,需要注意 `flatMap` 函数返回的是深层嵌套的集合,门额集合只压扁一层
+
+### 过滤
+
+`scala.collection.TraversableLike` 中有若干不同方法用于集合过滤:
+```scala
+def drop (n : Int) : TraversableLike.Repr
+Selects all elements except the first n elements. Returns a new traversable collection, which will be empty if this traversable collection has less than n elements.
+def dropWhile (p : (A) => Boolean) : TraversableLike.Repr
+Drops the longest prefix of elements that satisfy a predicate. Returns the longest suffix of this traversable collection whose first element does not satisfy the predicate p.
+def exists (p : (A) => Boolean) : Boolean
+Tests whether a predicate holds for at least one of the elements of this traversable collection. Returns true if so or false, otherwise.
+def filter (p : (A) => Boolean) : TraversableLike.Repr
+Selects all elements of this traversable collection that satisfy a predicate. Returns a new traversable collection consisting of all elements of this traversable collection that satisfy the given predicate p. The order of the elements is preserved.
+def filterNot (p : (A) => Boolean) : TraversableLike.Repr
+The “negation” of filter; selects all elements of this traversable collection that do not satisfy the predicate p…
+def find (p : (A) => Boolean) : Option[A]
+Finds the first element of the traversable collection satisfying a predicate, if any. Returns an Option containing the first element in the traversable collection that satisfies p, or None if none exists[…]
+def forall (p : (A) => Boolean) : Boolean
+Tests whether a predicate holds for all elements of this traversable collection. Returns true if the given predicate p holds for all elements, or false if it doesn’t.
+def partition (p : (A) => Boolean): (TraversableLike.Repr, TraversableLike.Repr)
+Partitions this traversable collection in two traversable collections according to a predicate. Returns a pair of traversable collections: the first traversable collection consists of all elements that satisfy the predicate p and the second traversable collection consists of all elements that don’t. The relative order of the elements in the resulting traversable collections is the same as in the original traversable collection.
+def take (n : Int) : TraversableLike.Repr
+Selects the first n elements. Returns a traversable collection consisting only of the first n elements of this traversable collection, or else the whole traversable collection, if it has less than n elements.
+def takeWhile (p : (A) => Boolean) : TraversableLike.Repr
+Takes the longest prefix of elements that satisfy a predicate. Returns the longest prefix of this traversable collection whose elements all satisfy the predicate p.
+Many collection types have additional methods related to filtering.
+```
+`takeWhile` 和`dropWhile` 貌似没啥用啊....
+
+### 折叠与规约
+
+折叠从一个"种子"开始,然后将该值作为上下文,处理集合中的每个元素,规约则把集合中的一个元素当做初始值进行处理,通常是第一个或是最后一个元素:
+```scala
+scala> val list = List(1,2,3,4,5,6)
+list: List[Int] = List(1, 2, 3, 4, 5, 6)
+
+scala> list reduce (_ + _)
+res0: Int = 21
+
+scala> list.fold (10) (_ * _)
+res1: Int = 7200
+
+scala> (list fold 10) (_ * _)
+res1: Int = 7200
+```
+`fold` 需要两个参数列表,我们无法想 `reduce` 那样采用中缀表达法,但是我们可以 `(list fold 10)(_*_)` 这样使用,为了揭示其原理,考虑以下代码:
+```scala
+scala> val fold1 = (list fold 10) _
+fold1: ((Int, Int) => Int) => Int = <function1>
+
+scala> fold1(_ * _)
+res10: Int = 7200
+```
+我们可以对一个空集合执行 `fold` 操作,他会返回种子的值,但是 `reduce` 则会抛出异常,所以如果你不确定集合是否为空,你可以使用 `OptionReduce` 代替:
+```scala
+scala> List.empty[Int] optionReduce (_ + _)
+res1: Option[Int] = None
+
+scala> List(1,2,3,4,5) optionReduce (_ + _)
+res2: Option[Int] = Some(15)
+```
+`reduce` 返回集合中各元素的最近公共父类型,`fold` 方法则有初始种子值,所以对最终结果的处理有更多选项,以下是一个折叠操作,事实上相当于映射操作:
+```scala
+(List(1,2,3,4) foldRight List.empty[String]) {(x, list) => ("[" + x + "]") :: list}
+>List([1],[2],[3],[4])
+```
+我们是用 `foldRight` 保证构造序列的顺序是正确的(就是说元素 `6` 最先被处理),累计值相当于这个匿名函数的第二个参数.
+
+事实上,所有的其他操作都可以用 `fold` 实现,包括 `foreach` ,下面是 `fold` 和 `reduce` 方法的签名和介绍,他们被声明与 `scala.collection.TraversableOnce` 和 `scala.collection.TraversableLike` 中:
+```scala
+def foldLeft[B](z: B)(op: (B, A) ⇒ B): B
+Applies a binary operator op to a start value and all elements of this traversable or iterator, going left to right.
+def foldRight[B](z: B)(op: (A, B) ⇒ B): B
+Applies a binary operator op to all elements of this traversable or iterator and a start value, going right to left.
+def /:[B](z: B)(op: (B, A) ⇒ B): B = foldLeft(z)(op)
+A synonym for foldLeft. Example: (0 /: List(1,2,3))(_ + _). Most people consider the operator form /: for foldLeft to be too obscure and hard to remember. Don’t forget the importance of communicating with your readers when writing code.
+def :\[B](z: B)(op: (A, B) ⇒ B): B = foldRight(z)(op)
+A synonym for foldRight. Example: (List(1,2,3) :\ 0)(_ + _). Most people consider the operator form :\ for foldRight to be too obscure and hard to remember.
+def reduce[A1 >: A](op: (A1, A1) ⇒ A1): A1
+Reduces the elements of this traversable or iterator using the specified associative binary operator op. The order in which operations are performed on elements is unspecified and may be nondeterministic. However, for most ordered collections like Lists, reduce is equivalent to reduceLeft. An exceptionis thrown if the collection is empty.
+def reduceLeft[A1 >: A](op: (A1, A1) ⇒ A1): A1
+Applies a binary operator op to all elements of this traversable or iterator, going left to right. An exception is thrown if the collection is empty.
+def reduceRight[A1 >: A](op: (A1, A1) ⇒ A1): A1
+Applies a binary operator op to all elements of this traversable or iterator going right to left. An exception is thrown if the collection is empty.
+def optionReduce[A1 >: A](op: (A1, A1) ⇒ A1): Option[A1]
+Like reduce, but returns None if the collection is empty or Some(…) if not.
+def reduceLeftOption[B >: A](op: (B, A) ⇒ B): Option[B]
+Like reduceLeft, but returns None if the collection is empty or Some(…) if not.
+def reduceRightOption[B >: A](op: (A, B) ⇒ B): Option[B]
+Like reduceRight, but returns None if the collection is empty or Some(…) if not.
+def aggregate[B](z: B)(seqop: (B, A) ⇒ B, combop: (B, B) ⇒ B): B
+Aggregates the results of applying an operator to subsequent elements. This is a more general form of fold and reduce. It has similar semantics, but does not require the result to be a parent type of the element type. It traverses the elements in different partitions sequentially, using seqop to update the result, and then applies combop to results from different partitions. The implementation of this operation may operate on an arbitrary number of collection partitions, so combop may be invoked an arbitrary number of times.
+def scan[B >: A](z: B)(op: (B, B) ⇒ B): TraversableOnce[B]
+Computes a prefix scan of the elements of the collection. Note that the neutral element z may be applied more than once. (I’ll show you an example at the end of this section.)
+def scanLeft[B >: A](z: B)(op: (B, B) ⇒ B): TraversableOnce[B]
+Produces a collection containing cumulative results of applying the operator op going left to right.
+def scanRight[B >: A](z: B)(op: (B, B) ⇒ B): TraversableOnce[B]
+Produces a collection containing cumulative results of applying the operator op going right to left.
+def product: A
+Multiplies the elements of this collection. Returns the product of all elements in the collection, as long as the elements have an implicit conversion to type Numeric[A] (for example, Int, Long, Float, Double, and BigInt). The full signature of this method is actually def product[B >: A](implicit num: Numeric[B]): B. See Constraining Allowed Instances for more on using implicit conversions to constrain the use of methods to allowed types.
+def mkString: String
+Displays all elements of this traversable or iterator in a string. This is a custom implementation of fold used for conveniently generating a custom string from the collection. There will be no delimiter between elements in the string.
+def mkString(sep: String): String
+Displays all elements of this traversable or iterator in a string using the specified separator (sep) string.
+def mkString(start: String, sep: String, end: String): String
+Displays all elements of this traversable or iterator in a string using the specified start (prefix), sep (separator), and end (suffix) strings.
+```
+特别留心传递给 `reduce` `fold` `aggregate` 的匿名函数的参数,对于 Left 系列的函数 ,如 `foldLeft` 其中第一个参数为累计值,集合遍历方向为从左到右,对于 Right 系列函数,其中第二个参数为累计值,集合遍历方向从左到右.
+
+`fold` 可以返回一个与集合元素完全不同的值,`reduce` 的返回总于元素相同类型或父类型,以上方法对无限集合均不作终止处理,同时,如果集合类型不是序列类型,或操作不满足交换律,以上方法每次运行结果可能都不同
+
+`aggregate` 方法应用并不广泛,因为它包含一些难以理解的不固定成分(待研究)
+
+`scan` 方法对于计算集合的连续子集非常有用:
+```scala
+scala> val list = List(1, 2, 3, 4, 5)
+list: List[Int] = List(1, 2, 3, 4, 5)
+
+scala> (list scan 10) (_ + _)
+res0: List[Int] = List(10, 11, 13, 16, 20, 25)”
+
+```
+最后的三个 `mkString` 方法实际上是 `fold` 和 `reduce` 的特例用于生成 `String`
+
+### 向左遍历和向右遍历
+
+```scala
+scala> val fnacLeft  = (x: String, y: String) => s"($x)-($y)"
+
+scala> val fnacRight = (x: String, y: String) => s"($y)-($x)"
+
+scala> val list2 = list1 map (_.toString)  // Make a list of Strings
+
+scala> list2 reduceLeft  fnacLeft
+res2: String = ((((1)-(2))-(3))-(4))-(5)
+
+scala> list2 reduceRight fnacRight
+res3: String = ((((5)-(4))-(3))-(2))-(1)
+
+scala> list2 reduceRight fnacLeft
+res4: String = (1)-((2)-((3)-((4)-(5))))
+```
+关键字:交换律与结合律
+
+#### 尾递归与遍历无限集合
+
+`Left` 操作 比 `Right` 操作的一个重大优势是,他们是尾递归的,他们可以从尾递归优化中获益,我们可以对 `Seq` 类实现我们自己的 `foldLeft` 和 `foldRight` 方法:
+
+```scala
+def reduceLeft[A,B](s: Seq[A])(f: A => B): Seq[B] = {
+  @annotation.tailrec
+  def rl(accum: Seq[B], s2: Seq[A]): Seq[B] = s2 match {
+    case head +: tail => rl(f(head) +: accum, tail)
+    case _ => accum
+  }
+  rl(Seq.empty[B], s)
+}
+
+def reduceRight[A,B](s: Seq[A])(f: A => B): Seq[B] = s match {
+  case head +: tail => f(head) +: reduceRight(tail)(f)
+  case _ => Seq.empty[B]
+}
+
+val list = List(1,2,3,4,5,6)
+
+reduceLeft(list)(i => 2*i)
+// => List(12, 10, 8, 6, 4, 2)
+
+reduceRight(list)(i => 2*i)
+// => List(2, 4, 6, 8, 10, 12)
+```
+`Seq.apply(index: Int)` 可以返回索引处元素但是为O(n)复杂度,所以 `foldRight` 的实现推迟了当前值与其他递归结果进行运算的时间,指导其他递归完成时才进行,所以 `foldRight` 不是尾递归的.
+
+`vector` 是从结尾追加元素
+
+如果不是为了栈溢出担心,大部分情况从右到左更适合你的操作,对于序列 `foldRight` 保持了元素原有的顺序,如果需要调用 `reverse` 的话还需遍历一次,
+
+从右向左递归还有一个优势,假如存在一个潜在的无限数据流,你只需要前N个元素,Scala库中的 `Stream` 类就是为此而设计的, `Stream` 是惰性的,只在被要求的时候求值,求值是指在计算时,定义一个无线数据流的唯一可能方法就是使用一个会一直生成数值的函数,该函数可能一直从某个输入渠道或大文件中读取数据,或者它本身就是一个能产生数值序列的函数,惰性的流只会对集合的头部调用一次函数,然后一直等待,直到调用端要求得集合的尾部值,举例比如斐波那契数列:
+```scala
+scala> import scala.math.BigInt
+
+scala> val fibs: Stream[BigInt] =
+     |   BigInt(0) #:: BigInt(1) #:: fibs.zip(fibs.tail).map (n => n._1 + n._2)//这个真是蛋疼.....
+
+scala> fibs take 10 foreach (i => print(s"$i "))
+0 1 1 2 3 5 8 13 21 34
+```
+使用与 `cons` 等价的 `#::` 我们为 `Stream` 够早了序列的前两个元素,分别是 n=0,1 的特例接着递归定义了剩下的元素(右方向递归) ,师徒构造一个惰性求值的左递归是不可能的
+>左方向地柜是尾递归,右方向递归可以提前截断
+> It’s important to note that the structure of fibs is very similar to our implementation of foldRight, f(0) + f(1) + tail. Because it is effectively a right recursion, we can stop evaluating tail when we have as many head elements as we want. In contrast, trying to construct a left recursion that is also lazy is not possible, because it would look conceptually like this: f(0 + f(1 + f(tail)). (Compare our implementation of foldLeft). Hence, a right recursion lets us work with infinite, lazy streams, truncating them appropriately, while a left recursion does not.
+
+然而我们可以注意到有些对序列实现了 `foldRight` 和 `reduceRight` 方法的类型.实际上先进行了逆序,然后在执行 `Left` ,例如 `collection.TraversableOnce` 为大部分 `Seq` 提供了这种实现,浙江允许我们用尾递归方式执行右向操作,虽然要话费先执行逆序的开销
+
+### 组合器: 软件最佳组合抽象
+
+为什么复用组件没有出现:根本原因在于,恰当的,通用的代码或二进制交互协议是该复用组件的基础,而这种代码或二进制协议并没有出现,事实上 认为对象API的丰富性反而破坏了复用组件需要的模块化观点,这是一个悖论
+
+对于特定的问题,我们可以将数据和需要实现的行为分离,我们来看一个简化工资单计算器的例子:
+```scala
+case class Employee (
+ name: String,
+ title: String,
+ annualSalary: Double,
+ taxRate: Double,
+ insurancePremiumsPerWeek: Double)
+
+val employees = List(
+ Employee("Buck Trends", "CEO", 200000, 0.25, 100.0),
+ Employee("Cindy Banks", "CFO", 170000, 0.22, 120.0),
+ Employee("Joe Coder", "Developer", 130000, 0.20, 120.0))
+
+// Calculate weekly payroll:
+val netPay = employees map { e =>
+ val net = (1.0 - e.taxRate) * (e.annualSalary / 52.0) -
+   e.insurancePremiumsPerWeek
+ (e, net)
+}
+
+// "Print" paychecks:
+println("** Paychecks:")
+netPay foreach {
+ case (e, net) => println(f"  ${e.name+':'}%-16s ${net}%10.2f")
+}
+
+// Generate report:
+val report = (netPay foldLeft (0.0, 0.0, 0.0)) {
+ case ((totalSalary, totalNet, totalInsurance), (e, net)) =>
+   (totalSalary + e.annualSalary/52.0,
+     totalNet + net,
+     totalInsurance + e.insurancePremiumsPerWeek)
+}
+
+println("\n** Report:")
+println(f"  Total Salary:    ${report._1}%10.2f")
+println(f"  Total Net:       ${report._2}%10.2f")
+println(f"  Total Insurance: ${report._3}%10.2f")
+```
+输出为:
+** Paychecks:
+  Buck Trends:        2784.62
+  Cindy Banks:        2430.00
+  Joe Coder:          1880.00
+
+** Report:
+  Total Salary:       9615.38
+  Total Net:          7094.62
+  Total Insurance:     340.00
+我们假设使用元组代替自定义的类,事实上使用类命名字段名可以使代码更具有可读性,对于使用专有类型有一些反对意见,他们会认为这回增价构造实例的开销,尤其是当数据量极大的时候
+
+### 关于复制
+
+结构共享的数据结构被称为持久性数据结构
+//向量复制图
+- [Wikipedia page on persistent data structures.](https://en.wikipedia.org/wiki/Persistent_data_structure)
+>For more on functional data structures, see Purely Functional Data Structures by Chris Okasaki and Pearls of Functional Algorithm Design by Richard Bird (both by Cambridge University Press), and Algorithms: A Functional Programming Approach, by Fethi Rabhi and Guy Lapalme (Addison-Wesley).
