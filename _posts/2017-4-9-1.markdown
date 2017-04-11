@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(5)"
 author:     wineway
-tags: 		Scala FunctionProgramming 笔记 未完成
+tags: 		Scala FunctionProgramming 笔记
 subtitle:   Scala函数式编程基本概念
 category:  project1
 visualworkflow: true
