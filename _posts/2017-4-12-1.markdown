@@ -7,3 +7,591 @@ subtitle:   Scala面向对象编程
 category:  project1
 visualworkflow: true
 ---
+# Scala 面向对象编程
+
+Scala 在架构上提倡的方法是, 小处用函数式编程, 大处用面向对象编程, 用函数式实现算法, 操作数据以及规范的管理状态. 另一方面, Scala 的 OO 模型提供很多工具, 可以用来设计可组合, 可复用的模块
+
+## 类与对象初步(复习一下)
+
+- `final` 用于避免派生新类
+- `abstract` 用于组织类的实例化
+- `this` 在Scala中很少见,原因之一是没有样板构造函数
+- 构造参数前加 `var/val` 使该参数成为类的一个可变字段/不可变字段
+- `case` 类可以自动推断 `val` ,同时自动增加一些方法, 实例的状态是所有字段当前值的 union
+- `method` 是与实例绑定在一起的函数, 也就是说其参数列表中有一个隐含的 `this` 参数, 当其他函数或方法需要一个函数为参时, Scala会自动"提升"可用方法为函数
+- Scala方法签名(返回类型, 方法名称, 参数类型)是唯一的, 多个方法就可以具有相同的名称,然而JVM对"高级类型(包含参数的类型)"存在类型擦除机制,如下例:
+
+```scala
+scala> object C {
+     |   def m(seq: Seq[Int]): Unit = println(s"Seq[Int]: $seq")
+     |   def m(seq: Seq[String]): Unit = println(s"Seq[String]: $seq")
+     | }
+<console>:9: error: double definition:
+method m:(seq: Seq[String])Unit and
+method m:(seq: Seq[Int])Unit at line 8
+have same type after erasure: (seq: Seq)Unit
+         def m(seq: Seq[String]): Unit = println(s"Seq[String]: $seq")
+             ^
+```
+- Scala可以使用 `type` 关键字声明类型成员作为类型成员是参数化的一种补充机制,他们经常被用来作为复杂类型的别名,被用来作为复杂类型的别名
+- "成员" 是类的 字段, 方法, 类型的统称, 如果方法有参数列表, 该方法可以与类的字段同名, `type` 名称必须唯一,如下例:
+
+```scala
+scala> trait Foo {
+     |    val x: Int
+     |    def x: Int
+     |  }
+<console>:9: error: value x is defined twice
+  conflicting symbols both originated in file '<console>'
+         def x: Int
+             ^
+
+scala> trait Foo {
+     |    val x: Int
+     |    def x(i: Int): Int
+     |  }
+defined trait Foo
+
+```
+- Scala没有 Java的静态成员,但是Scala用 `object` 保存多个实例共享的成员, 如常量
+- 如果一个对象和一个类具有相同名称, 并在同一文件中定义, 他们相互伴随, 对于 `case` 类, 编译器自动生成一个伴随对象
+(玛德我应该早看这章....原来看着代码各种猜,虽然猜对了但是心虚啊..=-=)
+
+## 8.2 引用于值类型
+
+Java语法为JVM实现数据的方式提供了模型, 首先它提供了一组原生类型 `short` `int` `long` `float` `double` `boolean` `char` `byte` 和关键字 `void`,他们被存储在堆栈中,或为了更好地性能被存储在CPU的寄存器, 其他类型被称为引用类型, 他们的所有实例都被分配在堆中, 引用这些实例的变量实际上指向了堆中的相应位置, 不同于C/C++, 栈上不存在任何"结构类型"(考虑在未来加入这种能力)
+
+Scala遵守了JVM的规则,也做了一些改进,使得原生类型和引用类型区别更明显:所有的引用类型都是 `AnyRef` 的子类型(更接近Java中Object), 所有值类型都是 `AnyVal` 的子类型, `AnyVal` 和 `AnyRef` 都是 `Any` 的子类型, 引用类型使用默认 `new` 关键字创建, 如果构造器不带参数,我们在使用构造器是可以去掉括号
+
+Scala沿用了Java中数字和字符串的字面量语法,还添加了元组的字面量语法(两元组简称pair), Scala的一些语言特性还可以实现编译器不支持的字面量写法,比如 `List` 等
+
+用带 `apply` 方法的对象创建引用类型的实例是个很常见的做法, `case` 类实例通常是这样创建出来的
+
+Scala值类型用的是JVm原生类型, 值类型没有构造器, `Unit` 类型对应的字面量是 `()`, 因为 `Unit` 行为和包含0个元素的元组很像
+
+## 价值类
+
+Scala 经常引入包装类型来实现新类型, 这也被称为扩展方法(隐式那里), **价值类(value class)**和 **通用特性(universal trait)** 能解决对值类型封装的问题
+
+要成为一个有效的价值类, 必须遵守以下规则:
+
+1. 价值类有且只有一个公开或不公开的 `val` 参数
+2. 参数的类型不能是价值类本身
+3. 价值类被参数化时,不能使用[`@specialized`](http://www.scala-lang.org/api/current/scala/specialized.html)标记
+4. 价值类没有定义其他构造器
+5. 价值类只定义了一些方法,没有定义其他变量
+6. 价值类不能重载 `equal` `hashcode` 方法
+7. 价值类定义中没有嵌套的特征,类和对象
+8. 价值类不能被继承
+9. 价值类只能继承通用特征
+10. 价值类必须是对象可引用的一个顶级类型或对象的一个成员
+
+比如下例中的 `Dollar` 类在运行时是被包装的类型 `Float`:
+```scala
+class Dollar(val value: Float) extends AnyVal {
+  override def toString = "$%.2f".format(value)
+}
+
+val benjamin = new Dollar(100)
+
+```
+价值类可以是一个 `case` 类但是没有必要
+
+一个通用特征有以下特征:
+1. 他可以从 `Any` 派生(不能从其他通用特征派生)
+2. 他只有定义方法
+3. 他没有对自己作初始化
+
+```scala
+trait Digitizer extends Any {
+  def digits(s: String): String = s.replaceAll("""\D""", "")         //
+}
+
+trait Formatter extends Any {                                        //
+  def format(areaCode: String, exchange: String, subnumber: String): String =
+    s"($areaCode) $exchange-$subnumber"
+}
+
+class USPhoneNumber(val s: String) extends AnyVal
+    with Digitizer with Formatter {
+
+  override def toString = {
+    val digs = digits(s)
+    val areaCode = digs.substring(0,3)
+    val exchange = digs.substring(3,6)
+    val subnumber  = digs.substring(6,10)
+    format(areaCode, exchange, subnumber)                            //
+  }
+}
+
+val number = new USPhoneNumber("987-654-3210")
+// Result: number: USPhoneNumber = (987) 654-3210
+Digitizer is a trait that contains the digits method we originally had in USPhoneNumber.
+
+Formatter formats the phone number the way we want it.
+
+Use Formatter.format.
+```
+然而由于JVM的限制, 通用特征有时候会触发实例化(即实例的内存分配于堆中),这里将需要实例化的情况总结如下:
+1. 当价值类的实例被传递给函数作为参数,而该函数预期参数为通用特征且需要被实例实现,不过,如果函数的预期参数是价值类本身,则不需要实例化
+2. 价值类的实例被赋值给数组
+3. 价值类的类型被用作类型参数
+
+比如当 `USPhoneNumber` 调用以下方法时,我们会创建一个 `USPhoneNumber` 的实例:
+
+```scala
+def toDigits(d: Digitizer, str: String) = d.digits(str)
+...
+val digs = toDigits(new USPhoneNumber("987-654-3210"), "123-Hello!-456")
+// Result: digs: String = 123456
+Also, when the following parameterized method is passed a USPhoneNumber, an instance of USPhoneNumber will have to be allocated:
+def print[T](t: T) = println(t.toString)
+print(new USPhoneNumber("987-654-3210"))
+// Result: (987) 654-3210
+
+```
+价值类为类型定义有意义的类型名称,这利用了包装值的类型安全性
+
+### 父类
+
+像Java一样,Scala只支持单一继承,而不是多重继承,子类(或派生类)有且只有一个父类,唯一例外是根类型 `Any` 没有父类
+
+```scala
+abstract class BulkReader {
+  type In
+  val source: In
+  def read: String  // Read source and return a String
+}
+
+class StringBulkReader(val source: String) extends BulkReader {
+  type In = String
+  def read: String = source
+}
+
+class FileBulkReader(val source: java.io.File) extends BulkReader {
+  type In = java.io.File
+  def read: String = {...}
+}
+```
+关键字 `extends` 后的是父类, 当类继承 `trait` 或 `trait` 是其他 `trait` 的字 `trait` 时,也用 `extends`(`with` 和 `extends` 区别貌似就是后者只能有一个), 如果我们不指定父类.默认父类是 `AnyRef`
+
+### Scala 的构造器
+
+```scala
+package progscala2.basicoop
+
+case class Address(street: String, city: String, state: String, zip: String) {
+
+  def this(zip: String) =                                            //
+    this("[unknown]", Address.zipToCity(zip), Address.zipToState(zip), zip)
+}
+
+object Address {
+
+  def zipToCity(zip: String)  = "Anytown"                            //
+  def zipToState(zip: String) = "CA"
+}
+
+case class Person(
+  name: String, age: Option[Int], address: Option[Address]) {        //
+
+  def this(name: String) = this(name, None, None)                    //
+
+  def this(name: String, age: Int) = this(name, Some(age), None)
+
+  def this(name: String, age: Int, address: Address) =
+    this(name, Some(age), Some(address))
+
+  def this(name: String, address: Address) = this(name, None, Some(address))
+}
+
+A secondary constructor that takes just a zip code argument. It calls helper methods to infer the city and state, but it can’t infer the street.
+
+Helper functions that look up the city and state from the zip code (or at least they pretend to do that).
+
+Make the person’s age and address optional.
+
+Provide convenient auxiliary constructors that let the user specify some or all of the values.
+```
+辅助构造器被命名为 `this` ,他调用的构造器在代码中要先于当前构造器出现, 通过前置让所有构造器最终调用主构造器, 可以将代码冗余最小化, 并确保新实例的初始化逻辑的一致性. 我们必须使用 `new` 构造实例
+
+$编译器不会自动为 `case` 类的次级构造器创建 `apply` 方法, 但是我们可以通过重载 `appply` 得到便利的构造器,与构造器不同,`apply` 这样的重载方法必须现实的注释返回类型:
+
+```scala
+package progscala2.basicoop3
+import progscala2.basicoop.Address
+
+case class Person3(
+  name: String,
+  age: Option[Int] = None,
+  address: Option[Address] = None)
+
+object Person3 {
+
+  // Because we are overloading a normal method (as opposed to constructors),
+  // we must specify the return type annotation, Person3 in this case.
+  def apply(name: String): Person3 = new Person3(name)
+
+  def apply(name: String, age: Int): Person3 = new Person3(name, Some(age))
+
+  def apply(name: String, age: Int, address: Address): Person3 =
+    new Person3(name, Some(age), Some(address))
+
+  def apply(name: String, address: Address): Person3 =
+    new Person3(name, address = Some(address))
+}
+Note that overloaded methods like apply that aren’t constructors must have an explicit return type annotation.
+Finally, here is a script that uses the final types:
+// src/main/scala/progscala2/basicoop/PersonAuxConstructors3.sc
+import progscala2.basicoop.Address
+import progscala2.basicoop3.Person3
+
+val a1 = new Address("1 Scala Lane", "Anytown", "CA", "98765")
+val a2 = new Address("98765")
+
+Person3("Buck Trends1")                                    // Primary
+// Result: Person3(Buck Trends1,None,None)
+
+Person3("Buck Trends2", Some(20), Some(a1))                // Primary
+// Result: Person3(Buck Trends2,Some(20),
+//           Some(Address(1 Scala Lane,Anytown,CA,98765)))
+
+Person3("Buck Trends3", 20, a1)
+// Result: Person3(Buck Trends3,Some(20),
+//           Some(Address(1 Scala Lane,Anytown,CA,98765)))
+
+Person3("Buck Trends4", Some(20))                          // Primary
+// Result: Person3(Buck Trends4,Some(20),None)
+
+Person3("Buck Trends5", 20)
+// Result: Person3(Buck Trends5,Some(20),None)
+
+Person3("Buck Trends6", address = Some(a2))                // Primary
+// Result: Person3(Buck Trends6,None,
+//           Some(Address([unknown],Anytown,CA,98765)))
+
+Person3("Buck Trends7", address = a2)
+// Result: Person3(Buck Trends7,None,
+//           Some(Address([unknown],Anytown,CA,98765)))
+```
+事实上,在Scala代码中定义次级构造器的情况并不是很常见,因为还有其他替代技术,注意合理使用Scala的命名参数和可选参数, 并科学的适用对象中重载 `apply` 工厂方法.
+
+### 类的字段
+
+Scala类的自动创建字段方法:
+
+```scala
+class Name(var value: String)
+//等效于
+class Name(s: String) {
+  private var _value: String = s //不可见字段
+
+  def value: String = _value //getter
+
+  def value_= (newValue: String): Unit = _value = newValue //setter ....沃日...注意代码名,惊了
+}
+```
+当编译器看到 `value_=` 这样的方法名时, 他会允许客户端代码去掉下划线, 转而使用中缀表达式, 就好像是我们在设置对象的一个裸字段一样
+
+对于非 `case` 类, 如果我们向构造器传入参数时不希望参数成为类的字段, 可以在构造器中省略 `val` 和 `var` ,例如我们需要向构造器传递一个参数, 但却希望在构造器退出后丢弃他.
+
+```scala
+object Pipline {
+  implicit class toPiped[V](value: V) {
+    def |>[R] (f: V => R) = f(value)
+  }
+}
+```
+
+可以看出非字段参数值仍然在类体的作用范围内,由于构造器是一个方法,参数在方法外是不可兼得,所以无论显示的还是隐式的,构造器的参数都必须像字段一样被保存起来
+
+因为字段对类的用户是可见的,构造器只有在确实需要暴露给用户状态的情况下,才会变成字段
+
+#### 统一访问原则
+
+Scala遵循统一访问原则, 我们对字段的修改看上去是对裸字段的修改,实际上调用了方法, 但是两者用户体验是一样的, 我们可以在需要的时候自由地将直接操作裸字段改为通过访问方法来操作,或反之,统一性访问原则的重要益处在于,他能最大程度上减少客户端代码对类内部实现所必须了解的, 有时候为了和 Java 库交互, 也会需要 JavaBeans 风格的访问方法, 这时可用 `scala.reflect.BeanProperty` 或 `booleanBeanProperty`
+
+#### 一元方法
+
+```scala
+case class Complex(real: Double, imag: Double) {
+  def unary_- : Complex = Complex(-real, imag)                       //
+  def -(other: Complex) = Complex(real - other.real, imag - other.imag)
+}
+
+val c1 = Complex(1.1, 2.2)
+val c2 = -c1                           // Complex(-1.1, 2.2)
+val c3 = c1.unary_-                    // Complex(-1.1, 2.2)
+val c4 = c1 - Complex(0.5, 1.0)        // Complex(0.6, 1.2)
+
+The method name is `unary_X`, where X is the operator character we want to use, - in this case. Note the space between the - and the :. This is necessary to tell the compiler that the method name ends with - and not :! For comparison, we also implement the usual minus operator.
+```
+一元操作符 `unary_X` 可以将操作符 `X` 放在实例之前, 也可以像 `c3` 那样调用
+
+### 验证输入
+
+`Predef` 定义了一系列名为`require` 的重载方法来验证输入的参数:
+
+```scala
+package progscala2.basicoop
+
+case class ZipCode(zip: Int, extension: Option[Int] = None) {
+  require(valid(zip, extension),                                     // require 接受Bool值抛出错误
+    s"Invalid Zip+4 specified: $toString")
+
+  protected def valid(z: Int, e: Option[Int]): Boolean = {
+    if (0 < z && z <= 99999) e match {
+      case None    => validUSPS(z, 0)
+      case Some(e) => 0 < e && e <= 9999 && validUSPS(z, e)
+    }
+    else false
+  }
+
+  /** Is it a real US Postal Service zip code? */
+  protected def validUSPS(i: Int, e: Int): Boolean = true            //
+
+  override def toString =                                            //
+    if (extension != None) s"$zip-${extension.get}" else zip.toString
+}
+
+object ZipCode {
+  def apply (zip: Int, extension: Int): ZipCode =
+    new ZipCode(zip, Some(extension))
+}
+
+Use the require method to validate input.
+
+A real implementation would check a USPS-sanctioned database to verify that the zip code actually exists.
+
+Override toString to return the format people expect for zip codes, with proper handling of the optional four-digit extension.
+Here is a script that uses it:
+// src/main/scala/progscala2/basicoop/Zipcode.sc
+import progscala2.basicoop.ZipCode
+
+ZipCode(12345)
+// Result: ZipCode = 12345
+
+ZipCode(12345, Some(6789))
+// Result: ZipCode = 12345-6789
+
+ZipCode(12345, 6789)
+// Result: ZipCode = 12345-6789
+
+try {
+  ZipCode(0, 6789)  // Invalid Zip+4 specified: 0-6789
+} catch {
+  case e: java.lang.IllegalArgumentException => e
+}
+
+try {
+  ZipCode(12345, 0)  // Invalid Zip+4 specified: 12345-0
+} catch {
+  case e: java.lang.IllegalArgumentException => e
+}
+```
+### 调用父类构造器
+
+```scala
+import progscala2.basicoop.Address
+
+case class Person(    // This was Person2 previously, now renamed.
+  name: String,
+  age: Option[Int] = None,
+  address: Option[Address] = None)
+
+class Employee(                                                      //
+  name: String,
+  age: Option[Int] = None,
+  address: Option[Address] = None,
+  val title: String = "[unknown]",                                   //
+  val manager: Option[Employee] = None) extends Person(name, age, address) {
+
+  override def toString =                                            //
+    s"Employee($name, $age, $address, $title, $manager)"
+}
+
+val a1 = new Address("1 Scala Lane", "Anytown", "CA", "98765")
+val a2 = new Address("98765")
+
+val ceo = new Employee("Joe CEO", title = "CEO")
+// Result: Employee(Joe CEO, None, None, CEO, None)
+
+new Employee("Buck Trends1")
+// Result: Employee(Buck Trends1, None, None, [unknown], None)
+
+new Employee("Buck Trends2", Some(20), Some(a1))
+// Result:  Employee(Buck Trends2, Some(20),
+//            Some(Address(1 Scala Lane,Anytown,CA,98765)), [unknown], None)
+
+new Employee("Buck Trends3", Some(20), Some(a1), "Zombie Dev")
+// Result:  Employee(Buck Trends3, Some(20),
+//            Some(Address(1 Scala Lane,Anytown,CA,98765)), Zombie Dev, None)
+
+new Employee("Buck Trends4", Some(20), Some(a1), "Zombie Dev", Some(ceo))
+// Result:  Employee(Buck Trends4, Some(20),
+//            Some(Address(1 Scala Lane,Anytown,CA,98765)), Zombie Dev,
+//            Some(Employee(Joe CEO, None, None, CEO, None)))
+
+Employee is declared a regular class, not a case class. We’ll explain why in the next section.
+
+The new fields, title and manager, require the val keyword because Employee isn’t a case class. The other arguments are already fields, from Person. Note that we also call Person’s primary constructor.
+
+Override toString. Otherwise, Person.toString would be used.
+
+```
+尽管和Java中一样,可以通过 `super` 调用被重写的父类方法, 但是不能用来调用父类类型, 而是用 `ChildClass(...) extends ParentClass(...)`语法隐式的调用父类构造器
+
+#### 良好的面向对象设计
+
+我们无法从一个 `case class` 继承一个 `case class`,因为自动生成的 `toString` `equal` `hashcode` 方法无法在子类正常工作
+
+下一节我们将看到, `trait` 使Scala的组合比Java更易用,我们一般不会使用继承来增加状态,使用继承时我们建议遵循以下规则:
+1. 一个抽象的基类或`trait` 只被下一层具体的类继承, 包括 `case` 类
+2. 具体的子类永远不会再次被继承,除了两种情况, a.类中混入了定义域 `trait` 中的其他行为,理想状况下, 这些行为应该是正交的,即不重叠的 b. 只用于支持自动化单元测试的类
+3. 当使用子类继承似乎是正确的做法时, 考虑将行为分离到 `trait`中,然后再类中混入这些 `trait`
+4. 切勿将逻辑状态(一些私有的专门的实现状态,这种状态不影响外部可见性,相等,散列等逻辑)跨越子类和父类
+
+以下是一种实现方式:
+```scala
+“package progscala2.basicoop2                                         //
+
+case class Address(street: String, city: String, state: String, zip: String)
+
+object Address {
+  def apply(zip: String) =                                           //
+    new Address(
+      "[unknown]", Address.zipToCity(zip), Address.zipToState(zip), zip)
+
+  def zipToCity(zip: String)  = "Anytown"
+  def zipToState(zip: String) = "CA"
+}
+
+trait PersonState {                                                  //
+  val name: String
+  val age: Option[Int]
+  val address: Option[Address]
+
+  // Some common methods declared/defined here?
+}
+
+case class Person(                                                   //
+  name: String,
+  age: Option[Int] = None,
+  address: Option[Address] = None) extends PersonState
+
+trait EmployeeState {                                                //
+  val title: String
+  val manager: Option[Employee]
+}
+
+case class Employee(                                                 //
+  name: String,
+  age: Option[Int] = None,                                           //
+  address: Option[Address] = None,
+  title: String = "[unknown]",
+  manager: Option[Employee] = None)
+extends PersonState with EmployeeState
+
+Use a different package because earlier versions of some of these types are in package oop.
+
+Previously, Address had an auxiliary constructor. Now we use a second factory method.
+
+Define a trait for the state we want a person to have. You could pick a naming convention you like better than PersonState.
+
+When we just have Person instances, use this case class, which implements PersonState.
+
+Use the same technique for Employee, although it’s less useful to declare a separate trait and case class for Employee. Still, consistency has its merits. The drawback is the extra “ceremony” we’ve introduced with separate traits and case classes.
+
+The Employee case class.
+
+Note that we have to define the default values twice for the fields shared between Person and Employee. That’s a slight disadvantage (unless we actually need that flexibility).
+```
+创建几个对象:
+
+```scala
+import progscala2.basicoop.{ Address, Person, Employee }
+
+val ceoAddress  = Address("1 Scala Lane", "Anytown", "CA", "98765")
+// Result: ceoAddress: oop2.Address = Address(1 Scala Lane,Anytown,CA,98765)
+
+val buckAddress = Address("98765")
+// Result: buckAddress: oop2.Address = Address([unknown],Anytown,CA,98765)
+
+val ceo = Employee(
+  name = "Joe CEO", title = "CEO", age = Some(50),
+  address = Some(ceoAddress), manager = None)
+// Result: ceo: oop2.Employee = Employee(Joe CEO,Some(50),
+//            Some(Address(1 Scala Lane,Anytown,CA,98765)),CEO,None)
+
+val ceoSpouse = Person("Jane Smith", address = Some(ceoAddress))
+// Result: ceoSpouse: oop2.Person = Person(Jane Smith,None,
+//            Some(Address(1 Scala Lane,Anytown,CA,98765)))
+
+val buck = Employee(
+  name = "Buck Trends", title = "Zombie Dev", age = Some(20),
+  address = Some(buckAddress), manager = Some(ceo))
+// Result: buck: oop2.Employee = Employee(Buck Trends,Some(20),
+//             Some(Address([unknown],Anytown,CA,98765)),Zombie Dev,
+//             Some(Employee(Joe CEO,Some(50),
+//               Some(Address(1 Scala Lane,Anytown,CA,98765)),CEO,None)))
+
+val buckSpouse = Person("Ann Collins", address = Some(buckAddress))
+// Result: buckSpouse: oop2.Person = Person(Ann Collins,None,
+//             Some(Address([unknown],Anytown,CA,98765)))
+```
+添加命名参数可以清楚地表达每个参数的意思,当好几个参数为同一类型时,可以避免bug的产生,同时也方便去选择值,当然你应该通过减少参数个数来避免这些
+
+### 嵌套类型(Nested Types)
+
+Scala 允许我们嵌套类型的声明和定义, 例如,在对象中定义类型详情异常和其它有用的类型,就是很常见的做法
+
+```scala
+“object Database {                                                    //
+  case class ResultSet(/*...*/)                                      //
+  case class Connection(/*...*/)                                     //
+
+  case class DatabaseException(message: String, cause: Throwable) extends
+    RuntimeException(message, cause)
+
+  sealed trait Status                                                //
+  case object Disconnected extends Status
+  case class  Connected(connection: Connection)  extends Status
+  case class  QuerySucceeded(results: ResultSet) extends Status
+  case class  QueryFailed(e: DatabaseException)  extends Status
+}
+
+class Database {
+  import Database._
+
+  def connect(server: String): Status = ???                          //
+  def disconnect(): Status = ???
+
+  def query(/*...*/): Status = ???
+}
+
+A simplified interface to databases.
+
+Encapsulate query result sets. We elided the details that we don’t care about for this sketch.
+
+Encapsulate connection pools and other information.
+
+Use a sealed hierarchy for the status; all allowed values are defined here. Use case objects when instances don’t actually carry any additional state information. These objects behave like “flags” indicating a state.
+
+The ??? is an actual method defined in Predef. It simply throws an exception. It is used to mark methods as unimplemented. It is a relatively recent introduction to the library.
+```
+当 `case` 类没有任何字段表示状态信息时,考虑使用 `case object`
+
+当方法还在开发阶段时,`???` 方法作为占位符十分有用因为这样可以是代码通过编译,虽然你没办法调用那个方法
+
+关于 `case` 对象, 有一个 hole:
+```scala
+scala> case object Foo
+defined object Foo
+
+scala> Foo.hashCode
+res0: Int = 70822
+
+scala> "Foo".hashCode
+res1: Int = 70822
+```
+因为 `case` 对象生成的 `hashcode` 方法仅仅将对象的名字做了散列,而对象的包像对象的字段一样被忽略了,意味着当需要更强的 `hashcode` 方法时, 应该避免使用 `case` 对象

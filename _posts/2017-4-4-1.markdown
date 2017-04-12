@@ -768,23 +768,28 @@ implicit def stringSeqToProcess(command: Seq[String]): ProcessBuilder = ...
 有一种可以提高隐式可见性的方法,即将隐式值统一放到名为 `implicit` 的特殊包或名为 `Implicits` 的对象中,这种方式使得读者一旦遇到导入语句中的 `implicit` 字样便会留意除了Scala内置隐式外还存在一些其他的隐式
 
 --------
-附录: xjb写的代码,待修改
+附录: xjb写的代码,第一次修改..还是有淡淡的问题...返回值为啥会出错
 ```scala
+package main.pkg
 case class TreeNode[T](data: T, children: Seq[TreeNode[T]] = Nil)
 object TreeNode {
-  var tmp: Seq[String] = Nil
-  def pr: PartialFunction[Any,Seq[String]] = {
-    case a: String => tmp = tmp:+a;tmp
-    case a+:Nil => pr(a)
-    case a:Seq[Any] => pr(a.head);pr(a.tail)
-  }
-
-  def asciiDisplay(root: TreeNode[String]): Seq[String] = {
+  def asciiDisplay(root: TreeNode[String]): Seq[Any] = {
     def build(root: TreeNode[String], blank: Int = 0, realBlank: String =" "): Seq[Any] = root match {
       case TreeNode(_,Nil) => s"${if(blank<2){realBlank * blank}else{""}}${if(blank>1){" |"+(realBlank*(blank-2))}else{""}}+-${root.data}"+:Nil
-      case x => s"${if(blank<2){realBlank * blank}else{""}}${if(blank>1){" |"+(realBlank*(blank-2))}else{""}}+-${root.data}" +: (root.children.map(build(_, blank+1)))
+      case x => s"${if(blank<2){realBlank * blank}else{""}}${if(blank>1){" |"+(realBlank*(blank-2))}else{""}}+-${root.data}" +: (root.children.flatMap(build(_, blank+1)))
     }
-    pr(build(root))
+    build(root)
+  }
+}
+object main {
+  def main(args: Array[String]): Unit ={
+    import TreeNode._
+    asciiDisplay(TreeNode("Root",
+      children = List(
+        TreeNode("level1-1", children = TreeNode("level2-1", children = TreeNode("level3-1") :: Nil) :: Nil),
+        TreeNode("level1-2"),
+        TreeNode("level1-3")))).foreach(println)
+
   }
 }
 ```
