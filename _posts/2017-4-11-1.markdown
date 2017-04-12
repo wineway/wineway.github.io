@@ -7,3 +7,558 @@ subtitle:   for 推导式深入学习
 category:  project1
 visualworkflow: true
 ---
+我们在本节将学习真正了解 `for` 推导式, 除了学到Scala是如何实现 `for` 推导以外,我们还将学会如何在自己创建的容器中使用他们,
+
+`for` 推导式中包含一个或多个生成器表达式, 外加可选的保护表达式(guard expression)以及值定义,推倒时的输出可以用于生成新的容器,也可以在每次遍历执行具有副作用的代码块:
+```scala
+package progscala2.forcomps
+
+object RemoveBlanks {
+
+  /**
+   * Remove blank lines from the specified input file.
+   */
+  def apply(path: String, compressWhiteSpace: Boolean = false): Seq[String] =
+    for {
+      line <- scala.io.Source.fromFile(path).getLines.toSeq          //
+      if line.matches("""^\s*$""") == false                          //
+      line2 = if (compressWhiteSpace) line replaceAll ("\\s+", " ")  //
+              else line
+    } yield line2                                                    //
+
+  /**
+   * Remove blank lines from the specified input files and echo the remaining
+   * lines to standard output, one after the other.
+   * @param args list of file paths. Prefix each with an optional "-" to
+   *             compress remaining whitespace in the file.
+   */
+  def main(args: Array[String]) = for {
+    path2 <- args                                                    //
+    (compress, path) = if (path2 startsWith "-") (true, path2.substring(1))
+                       else (false, path2)                           //
+    line <- apply(path, compress)
+  } println(line)                                                    //
+}
+```
+- 首先使用 `scala.io.Source` 对象打开文件并读取文件行, `getLines` 返回 `scala.collection.Iterator` 对象,`for` 推导式的返回类型由初始的生成器决定,因此我们必须将其转化为一个 `Seq`
+- 然后使用正则表达式过滤空行,然后定义局部变量,开启空白符压缩将会将所有的空白符压缩为一个空格
+
+我们来看看 `apply` 方法返回的实际容器,加入返回了 sbt 控制台,我们便能查看该容器
+```
+> console
+Welcome to Scala version 2.11.2 (Java HotSpot(TM) ...).
+...
+scala> val lines = forcomps.RemoveBlanks.apply(
+     |   "src/main/scala/progscala2/forcomps/RemoveBlanks.scala")
+lines: Seq[String] = Stream(
+// src/main/scala/progscala2/forcomps/RemoveBlanks.scala, ?)
+
+scala> lines.head
+res1: String = // src/main/scala/progscala2/forcomps/RemoveBlanks.scala
+
+scala> lines take 5 foreach println
+// src/main/scala/progscala2/forcomps/RemoveBlanks.scala
+package forcomps
+object RemoveBlanks {
+  /**
+   * Remove blank lines from the specified input file.
+```
+`apply` 方法返回惰性 `Stream` 值,REPl打印 `lines` 定义信息最后显示了一个问号代表文件中尚未被计算的尾部内容,`Stream` 会记住他所解析的所有元素内容,注意上面出现的两个 `for` 推导式的每次迭代都不会保存状态,因此并不需要在内容上保存多于一行的数据.
+
+事实上,当你调用 `scala.collection.Iterator` 的 `toString` 方法时, 会调用子类型 `scala.collection.TraversableOnce` 中的默认实现并返回 `Stream` 类型的对象,而 `Iterator` 的其他子类型可能会返回一个 `strict` 的容器
+/////待修改?
+
+## for 推导式: 内部机制
+
+`for` 推导式的语法实际上是编译器提供的语法糖,他会调用容器方法 `foreach` `map` `flatmap` `withFilter` 方法,如果容器未定义 `withFilter` 方法编译器将使用 `filter` 代替并抛出警告,与 `filter` 相比 `withFilter` 并不会构造输出容器,,为了更高的效率, `withFilter` 会与其他方法一起执行过滤逻辑,这样能减少一次生成新容器所带来的开销,更具体来讲, `withFilter` 会限制允许传递给后续组合器的元素类型域?, 这些后续组合器包括 `map` `flatMap` `foreach` 以及其他 `withFilter` 会调用的方法.
+>我理解就是传过来一个送过去一个....
+考虑一下 `for` 推导式:
+```scala
+val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
+
+for {
+  s <- states
+} println(s)
+// Results:
+// Alabama
+// Alaska
+// Virginia
+// Wyoming
+
+states foreach println
+// Results the same as before.
+```
+推导式中存在一个不含 `yield` 表达式的生成器表达式,该表达式对应了容器 `foreach` 方法中执行的表达式,如果使用 `yield`:
+```scala
+val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
+
+for {
+  s <- states
+} yield s.toUpperCase
+// Results: List(ALABAMA, ALASKA, VIRGINIA, WYOMING)
+
+states map (_.toUpperCase)
+// Results: List(ALABAMA, ALASKA, VIRGINIA, WYOMING)
+```
+可以看出 `yield` 表达式对应了一次 `map` 操作,第一个生成器表达式决定了最终结果的容器类型,输出 `List` 返回就是 `List`
+
+如果定义多个生成器:
+```scala
+val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
+
+for {
+  s <- states
+  c <- s
+} yield s"$c-${c.toUpper}"
+// Results: List("A-A", "l-L", "a-A", "b-B", ...)
+
+states flatMap (_.toSeq map (c => s"$c-${c.toUpper}"))
+// Results: List("A-A", "l-L", "a-A", "b-B", ...)
+```
+如果存在多个生成器,那么除了最后一个会被转化为 `map` 其他所有的生成器都会别转化为 `flatMap`
+
+添加一个保护式:
+```scala
+val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
+
+for {
+  s <- states
+  c <- s
+  if c.isLower
+} yield s"$c-${c.toUpper} "
+// Results: List("l-L", "a-A", "b-B", ...)
+
+states flatMap (_.toSeq withFilter (_.isLower) map (c => s"$c-${c.toUpper}"))
+// Results: List("l-L", "a-A", "b-B", ...)
+```
+最终的`map` 调用之前插入了一个 `withFilter` 调用语句
+
+最后我们在 `for` 推导式中定义了一个变量:
+```scala
+val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
+
+for {
+  s <- states
+  c <- s
+  if c.isLower
+  c2 = s"$c-${c.toUpper} "
+} yield c2
+// Results: List("l-L", "a-A", "b-B", ...)
+
+states flatMap (_.toSeq withFilter (_.isLower) map { c =>
+  val c2 = s"$c-${c.toUpper} "
+  c2
+})
+// Results: List("l-L", "a-A", "b-B", ...)
+
+```
+
+### for推导式转化规则
+>`val z @ (x,y) = (1 -> 2)`
+
+像 `pat <- expr` 这样的生成器表达式中, `pat` 实际上是一个模式表达式,例如: `(x,y) -> List((1, 2), (3, 4))`,Scala会以类似的方式对值定义语句进行处理,该语句也会被视作某种模式, Scala在转化 for推导式 要做的第一件事就是将 `pat <- expr` 转化为下列语句:
+```scala
+pat <- expr.withFilter( case pat => true; case _ => false)
+```
+----
+```scala
+First, a for comprehension with one generator and a final yield expression:
+// for ( pat <- expr1 ) yield expr2
+expr map { case pat => expr2 }
+A for loop, where yield isn’t used, but side effects are performed:
+// for ( pat <- expr1 ) expr2
+expr foreach { case pat => expr2 }
+A for comprehension with more than one generator:
+// for ( pat1 <- expr1; pat2 <- expr2; ... ) yield exprN
+expr1 flatMap { case pat1 => for (pat2 <- expr2 ...) yield exprN }
+Note that the nested generators are translated to nested for comprehensions. The next cycle of applying the translation rules will convert them to method calls. The elided (…) expressions could be other generators, value definitions, or guards.
+A for loop with more than one generator:
+// for ( pat1 <- expr1; pat2 <- expr2; ... ) exprN
+expr1 foreach { case pat1 => for (pat2 <- expr2 ...) yield exprN }
+In the for comprehension examples we’ve seen before that had a guard expression, we wrote the guard on a separate line. In fact, a guard and the expression on the previous line can be written together on a single line, e.g., pat1 <- expr1 if guard.
+A generator followed by a guard is translated as follows:
+// pat1 <- expr1 if guard
+pat1 <- expr1 withFilter ((arg1, arg2, ...) => guard)
+Here, the argN variables are the arguments for the appropriate function passed to withFilter. For most collections, there will be a single argument.
+```
+如果生成器后面尾随一个值定义,如下图所示:
+```scala
+//pat1 <- expr1; pat2 <- expr2
+(pat1, pat2) <- for {
+  x1 @ pat1 <- expr1
+}yield{
+  val x2 @ pat2 = expr2
+  (x1, x2)
+}
+```
+举个例子:
+```scala
+val map = Map("one"->1, "two"->2)
+
+val list1 = for {
+  (key, value) <- map
+  i10 = value +10
+}yield(i10)
+
+val list2 = for {
+  (i, i10) <- for {
+    x1 @ (key, value) <- map
+  }yield{
+    x2 @ i10 = value+10
+    (x1, x2)
+  }
+}yield(i10)
+```
+再看一组示例:
+```scala
+“val ignoreRegex = """^\s*(#.*|\s*)$""".r                             //
+val kvRegex = """^\s*([^=]+)\s*=\s*([^#]+)\s*.*$""".r                //
+
+val properties = """
+  |# Book properties
+  |
+  |book.name = Programming Scala, Second Edition # A comment
+  |book.authors = Dean Wampler and Alex Payne
+  |book.publisher = O'Reilly
+  |book.publication-year = 2014
+  |""".stripMargin                                                   //
+
+val kvPairs = for {
+  prop <- properties.split("\n")                                     //
+  if ignoreRegex.findFirstIn(prop) == None                           //
+  kvRegex(key, value) = prop                                         //
+} yield (key.trim, value.trim)                                       //
+// Returns: kvPairs: Array[(String, String)] = Array(
+//   (book.name,Programming Scala, Second Edition),
+//   (book.authors,Dean Wampler and Alex Payne),
+//   (book.publisher,O'Reilly),
+//   (book.publication-year,2014))
+```
+
+### Option 以及其他的一些容器类型
+
+for推导式中还可以使用任意一种实现 `foreach` `map` 等方法的类型,换言之,任何提供这些方法的类型都可以视为容器
+
+#### Option 容器
+
+`Option` 是一个二元容器,也许包含一个元素也许不包含元素,下面是简要的 `scala` 库源代码
+```scala
+sealed abstract class Option[+T] { self =>                      //
+  ...
+  def isEmpty: Boolean  // Implemented by Some and None.
+
+  final def foreach[U](f: A => U): Unit =
+    if (!isEmpty) f(this.get)
+
+  final def map[B](f: A => B): Option[B] =
+    if (isEmpty) None else Some(f(this.get))
+
+  final def flatMap[B](f: A => Option[B]): Option[B] =
+    if (isEmpty) None else f(this.get)
+
+  final def filter(p: A => Boolean): Option[A] =
+    if (isEmpty || p(this.get)) this else None
+
+  final def withFilter(p: A => Boolean): WithFilter = new WithFilter(p)
+
+  /** We need a whole WithFilter class to honor the "doesn't create a new
+   *  collection" contract even though it seems unlikely to matter much in a
+   *  collection with max size 1.
+   */
+  class WithFilter(p: A => Boolean) {
+    def map[B](f: A => B): Option[B] = self filter p map f      //
+    def flatMap[B](f: A => Option[B]): Option[B] = self filter p flatMap f
+    def foreach[U](f: A => U): Unit = self filter p foreach f
+    def withFilter(q: A => Boolean): WithFilter =
+      new WithFilter(x => p(x) && q(x))
+  }
+}
+```
+- `self => `表达式定义了 `Option` 实例的一个别名,该别名出现在后面的 `withFilter` 方法中被使用
+
+`final` 关键字组织子类覆写这些方法,通常情况下,基类知道继承类型的全部信息,该设计会被视为不好的设计,但是 `sealed` 关键字意味着只允许在相同文件中定义该类的子类,Option对象要么是空的要么是非空的,因此这段代码是鲁棒的
+>这么搞是因为编译器会优化?
+
+这些方法有一个特性: 只有当 `Option` 非空时,那些方法才会传入函数参数,利用这一特性我们能解决一些常见的设计问题,比如分布式计算领域中的:将计算分解为小人物,再将这些任务发送到集群中,之后再收集这些任务的执行结果,只对非空类型处理忽略出错的任务
+
+首先假设每个人物都会返回 `Option` 对象,我们希望以最优雅的方式过滤出结果:
+```scala
+
+val results: Seq[Option[Int]] = Vector(Some(10), None, Some(20))
+
+val results2 = for {
+  Some(i) <- results
+} yield (2 * i)
+// Returns: Seq[Int] = Vector(20, 40)
+```
+`Some(i) <- list` 为模式匹配移除 `None` 并提取整数值,下面对for表达式替换:
+
+```scala
+// Translation step #1
+val results2b = for {
+  Some(i) <- results withFilter {
+    case Some(i) => true
+    case None => false
+  }
+} yield (2 * i)
+// Returns: results2b: List[Int] = List(20, 40)
+Finally, we convert the outer for { x <- y} yield (z) expression to a `map` call:
+// Translation step #2
+val results2c = results withFilter {
+  case Some(i) => true
+  case None => false
+} map {
+  case Some(i) => (2 * i)
+}
+// Returns: results2c: List[Int] = List(20, 40)
+The map expression actually generates a compiler warning,you can just ignore it:
+<console>:9: warning: match may not be exhaustive.
+It would fail on the following input: None
+       } map {
+             ^
+```
+我们课可以使用for推导式编写代码:当检测出`None` 时尽快停止关联的处理过程:
+```scala
+def positive(i: Int): Option[Int] =
+  if (i > 0) Some(i) else None
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(10 * i1)
+  i3 <- positive(25 * i2)
+  i4 <- positive(2  * i3)
+} yield (i1 + i2 + i3 + i4)
+// Returns: Option[Int] = Some(3805)
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(-1 * i1)              //    EPIC FAIL!
+  i3 <- positive(25 * i2)              //
+  i4 <- positive(-2 * i3)              // EPIC FAIL!
+} yield (i1 + i2 + i3 + i4)
+// Returns: Option[Int] = None
+```
+我们认为第二个for推导式也能正常运行,一旦返回 `None` 后续的表达式将会停止执行,因为 `map` `flatMap` 不会对这些函数字面量进行处理(到时候自己替换一下?待修改)
+
+#### Either: Option 类型的逻辑扩展
+
+由于错误返回 `None` 对象时,使用 `Either` 替代是一种解决方案, `Option` 只能持有一个或零个值, `Either` 持有这个或者那个元素项
+
+`Either` 是一个包含两个参数的参数化类型,签名为 `Either[A,B]` 其中`A` `B` 是 `Either` 可能持有的类型, `Either` 同时也是 `sealed` 抽象类,有两个子类 `Left[A]` `Right[B]` , `left` 值用于表示错误标志, `Right` 用于正常返回.我们使用 `Either` 对上例重写:
+```scala
+def positive(i: Int): Either[String,Int] =
+  if (i > 0) Right(i) else Left(s"nonpositive number $i")
+
+for {
+  i1 <- positive(5).right
+  i2 <- positive(10 * i1).right
+  i3 <- positive(25 * i2).right
+  i4 <- positive(2  * i3).right
+} yield (i1 + i2 + i3 + i4)
+// Returns: scala.util.Either[String,Int] = Right(3805)
+
+for {
+  i1 <- positive(5).right
+  i2 <- positive(-1 * i1).right   // EPIC FAIL!
+  i3 <- positive(25 * i2).right
+  i4 <- positive(-2 * i3).right   // EPIC FAIL!
+} yield (i1 + i2 + i3 + i4)
+// Returns: scala.util.Either[String,Int] = Left(nonpositive number -5)”
+```
+由于类型有两个参数,我们可以使用中缀表示法声明`Either`:`val l2: String Either Int = Left("boo")`, 我们甚至可以给他取个别名.`Either` 本身并未定义组合方法 `map` `fold` 等,我们只能通过访问 `Either.left` `Either.right` 中的组合方法,因为组合方法只接收单个函数参数, 但是我们需要为 `Either` 容器指定两个函数参数,`Either` 对象提供了 `left` `right` 方法,这两个方法会构建出一个提供组合方法的投影对象:
+```scala
+scala> l.left
+res0: scala.util.Either.LeftProjection[String,Int] = \
+  LeftProjection(Left(boo))
+
+scala> l.right
+res1: scala.util.Either.RightProjection[String,Int] = \
+  RightProjection(Left(boo))
+
+scala> r.left
+res2: scala.util.Either.LeftProjection[String,Int] = \
+  LeftProjection(Right(12))
+
+scala> r.right
+res3: scala.util.Either.RightProjection[String,Int] = \
+  RightProjection(Right(12))
+```
+`Either.LeftProjection` 值即可以持有 `Left` 实例,也可以持有 `Right` 实例,下面是示例:
+```scala
+scala> l.left.map(_.size)
+res4: Either[Int,Int] = Left(3)
+
+scala> r.left.map(_.size)
+res5: Either[Int,Int] = Right(12)
+
+scala> l.right.map(_.toDouble)
+res6: Either[String,Double] = Left(boo)
+
+scala> r.right.map(_.toDouble)
+res7: Either[String,Double] = Right(12.0)
+```
+哪边有实例而且方法参数匹配就调用那边..
+
+使用`Either` 对象,我们可以保障引用透明性, 并通过类型签名提醒调用者可能出现的错误:
+```scala
+def addInt(s1: String, s2: String) = {
+  try{
+    Right(s1.toInt + s2.toInt)
+  }catch{
+    case a: NumberFomatException => Left(a)
+  }
+}
+
+println(addInt("1"+"x"))
+>Left(java.lang.NumberFormatException: For input string : "x")
+```
+为了处理异常,我们也许应该使用某些类型将这些样板代码进行封装,无论成功或是失败,,这些类型名能更清楚地表达这当前的状况, `Try` 类型就做到了这一点
+
+### Try 类型
+`scala.util.Try` 的结构和 `Either` 相似,他有两个子类`Success` `Failure` ,下面列出了这些类型的签名信息:
+```scala
+sealed abstract class Try[+T] extends AnyRef {...}
+final case class Success[+T](value: T) extends Try[T] {...}
+final case class Failure[+T](exception: Throwable) extends Try[T] {...}
+```
+和之前一样,我们使用`Try`重写示例:
+```scala
+import scala.util.{ Try, Success, Failure }
+
+def positive(i: Int): Try[Int] = Try {
+  assert (i > 0, s"nonpositive number $i")
+  i
+}
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(10 * i1)
+  i3 <- positive(25 * i2)
+  i4 <- positive(2  * i3)
+} yield (i1 + i2 + i3 + i4)
+// Returns: scala.util.Try[Int] = Success(3805)
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(-1 * i1)              // EPIC FAIL!
+  i3 <- positive(25 * i2)
+  i4 <- positive(-2 * i3)              // EPIC FAIL!
+} yield (i1 + i2 + i3 + i4)
+// Returns: scala.util.Try[Int] = Failure(
+//   java.lang.AssertionError: assertion failed: nonpositive number -5)
+```
+或者
+```scala
+def positive(i: Int): Try[Int] =
+  if (i > 0) Success(i)
+  else Failure(new AssertionError("assertion failed"))
+
+```
+
+### Scalaz 提供的 Validation
+ 假如for推导式中出现了空值或错误,那么 conbinator(组合器) 便不会调用后续的表达式, 事实上,我们会再发生第一个错误之后停止更新后续代码,但是当我们正在执行一些相互独立的操作,并希望执行这些操作时收集所有发生的错误,Scalaz这一第三方库提供了满足这一需求的 `Validation` 类型:
+
+ ```scala
+ import scalaz._, std.AllInstances._
+
+def positive(i: Int): Validation[List[String], Int] = {
+  if (i > 0) Success(i)                                              //
+  else Failure(List(s"Nonpositive integer $i"))
+}
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(10 * i1)
+  i3 <- positive(25 * i2)
+  i4 <- positive(2  * i3)
+} yield (i1 + i2 + i3 + i4)
+// Returns: scalaz.Validation[List[String],Int] = Success(3805)
+
+for {
+  i1 <- positive(5)
+  i2 <- positive(-1 * i1)              // EPIC FAIL!
+  i3 <- positive(25 * i2)
+  i4 <- positive(-2 * i3)              // EPIC FAIL!
+} yield (i1 + i2 + i3 + i4)
+// Returns: scalaz.Validation[List[String],Int] =
+//   Failure(List(Nonpositive integer -5))                           //
+
+positive(5) +++ positive(10) +++ positive(25)                        //
+// Returns: scalaz.Validation[String,Int] = Success(40)
+
+positive(5) +++ positive(-10) +++ positive(25) +++ positive(-30)     //
+// Returns: scalaz.Validation[String,Int] =
+//   Failure(Nonpositive integer -10, Nonpositive integer -30)
+
+Success and Failure here are subclasses of scalaz.Validation. They are not the scala.util.Try subtypes.
+
+Because we use a for comprehension, the evaluation is still short-circuited, so we don’t see the last error for i4.
+
+However, in this and the following expressions, we evaluate all the calls to positive, then “add” the results or accumulate the errors.
+
+Both errors are reported.
+```
+- 与 `Either` 类型相似, `Validation` 类中第一个参数表示汇报错误的类型
+- `+++` 加法操作符是Scalaz众多可选操作之一,请查阅 [`Validation doc`](),我们使用它执行各个独立估值,假如信息能通过所有的验证,我们将基于这些结果值统计最终结果,反之,该表达式将所有的错误汇总返回,我们在上例中使用字符串存储错误信息
+
+我们可以使用 `List[(String, Any)]` 类型作为验证通过后返回的类型,将最终字段值汇聚而不是求和
+>Scalaz不支持使用`Map(String, Any)`
+
+```scala
+import scalaz._, std.AllInstances._
+
+/** Validate a user's name; nonempty and alphabetic characters, only. */
+def validName(key: String, name: String):
+    Validation[List[String], List[(String,Any)]] = {
+  val n = name.trim  // remove whitespace
+  if (n.length > 0 && n.matches("""^\p{Alpha}$""")) Success(List(key -> n))
+  else Failure(List(s"Invalid $key <$n>"))
+}
+
+/** Validate that the string is an integer and greater than zero. */
+def positive(key: String, n: String):
+    Validation[List[String], List[(String,Any)]] = {
+  try {
+    val i = n.toInt
+    if (i > 0) Success(List(key -> i))
+    else Failure(List(s"Invalid $key $i"))
+  } catch {
+    case _: java.lang.NumberFormatException =>
+      Failure(List(s"$n is not an integer"))
+  }
+}
+
+def validateForm(firstName: String, lastName: String, age: String):
+    Validation[List[String], List[(String,Any)]] = {
+  validName("first-name", firstName) +++ validName("last-name", lastName) +++
+    positive("age", age)
+}
+
+validateForm("Dean", "Wampler", "29")
+// Returns: Success(List((first-name,Dean), (last-name,Wampler), (age,29)))
+validateForm("", "Wampler", "29")
+// Returns: Failure(List(Invalid first-name <>))
+validateForm("D e a n", "Wampler", "29")
+// Returns: Failure(List(Invalid first-name <D e a n>))
+validateForm("D1e2a3n_", "Wampler", "29")
+// Returns: Failure(List(Invalid first-name <D1e2a3n_>))
+validateForm("Dean", "", "29")
+// Returns: Failure(List(Invalid last-name <>))
+validateForm("Dean", "Wampler", "0")
+// Returns: Failure(List(Invalid age 0))
+validateForm("Dean", "Wampler", "xx")
+// Returns: Failure(List(xx is not an integer))
+validateForm("", "Wampler", "0")
+// Returns: Failure(List(Invalid first-name <>, Invalid age 0))
+validateForm("Dean", "", "0")
+// Returns: Failure(List(Invalid last-name <>, Invalid age 0))
+validateForm("D e a n", "", "29")
+// Returns: Failure(List(Invalid first-name <D e a n>, Invalid last-name <>))
+```
+.....这玩意的类型真是蛋疼
+
+### 本节回顾
+
+`Either` `Try` `Validation` 类型定义了程序的实际行为,`Try` `Validation` 类型都期望返回正确值,这两种类型对你应该了解的错误信息进行封装,与之类似,`Option` 类型签名明确的表明了该类型对某一值能否出现的场景进行了封装
+
+使用这些类型能减少对于异常的使用,同时我们解决了一个重要的并发问题,由于我们无法保证异步执行的代码会运行在称为 caller(调用者) 的同一线程内,因此调用者勿发布或其他代码抛出的异常,如果像正常值那样返回异常,调用者便能得到异常值,后面会深入相关细节
