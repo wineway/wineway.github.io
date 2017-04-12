@@ -72,6 +72,7 @@ object RemoveBlanks {
 
 `for` 推导式的语法实际上是编译器提供的语法糖,他会调用容器方法 `foreach` `map` `flatmap` `withFilter` 方法,如果容器未定义 `withFilter` 方法编译器将使用 `filter` 代替并抛出警告,与 `filter` 相比 `withFilter` 并不会构造输出容器,,为了更高的效率, `withFilter` 会与其他方法一起执行过滤逻辑,这样能减少一次生成新容器所带来的开销,更具体来讲, `withFilter` 会限制允许传递给后续组合器的元素类型域?, 这些后续组合器包括 `map` `flatMap` `foreach` 以及其他 `withFilter` 会调用的方法.
 >我理解就是传过来一个送过去一个....
+
 考虑一下 `for` 推导式:
 ```scala
 val states = List("Alabama", "Alaska", "Virginia", "Wyoming")
