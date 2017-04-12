@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(6)"
 author:     wineway
-tags: 		Scala  for推导式 笔记 未完成
+tags: 		Scala  for推导式 笔记
 subtitle:   for 推导式深入学习
 category:  project1
 visualworkflow: true
@@ -500,7 +500,7 @@ However, in this and the following expressions, we evaluate all the calls to pos
 Both errors are reported.
 ```
 - 与 `Either` 类型相似, `Validation` 类中第一个参数表示汇报错误的类型
-- `+++` 加法操作符是Scalaz众多可选操作之一,请查阅 [`Validation doc`](),我们使用它执行各个独立估值,假如信息能通过所有的验证,我们将基于这些结果值统计最终结果,反之,该表达式将所有的错误汇总返回,我们在上例中使用字符串存储错误信息
+- `+++` 加法操作符是Scalaz众多可选操作之一,请查阅 [`Validation doc`](https://oss.sonatype.org/service/local/repositories/releases/archive/org/scalaz/scalaz_2.12/7.3.0-M11/scalaz_2.12-7.3.0-M11-javadoc.jar/!/scalaz/Validation.html),我们使用它执行各个独立估值,假如信息能通过所有的验证,我们将基于这些结果值统计最终结果,反之,该表达式将所有的错误汇总返回,我们在上例中使用字符串存储错误信息
 
 我们可以使用 `List[(String, Any)]` 类型作为验证通过后返回的类型,将最终字段值汇聚而不是求和
 >Scalaz不支持使用`Map(String, Any)`
