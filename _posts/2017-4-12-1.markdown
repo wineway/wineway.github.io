@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(7)"
 author:     wineway
-tags: 		Scala  面向对象编程 笔记 未完成
+tags: 		Scala  面向对象编程 笔记
 subtitle:   Scala面向对象编程
 category:  project1
 visualworkflow: true
