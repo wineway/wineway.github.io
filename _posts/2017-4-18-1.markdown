@@ -1,0 +1,9 @@
+---
+layout:     post
+title:      "[笔记]Scheme文档摘要"
+author:     wineway
+tags: 		Scheme  FunctionProgramming 笔记 未完成
+subtitle:   r5rs文档摘要
+category:  project1
+visualworkflow: true
+---

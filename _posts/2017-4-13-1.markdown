@@ -7,3 +7,66 @@ subtitle:   Scala的 trait
 category:  project1
 visualworkflow: true
 ---
+# trait
+
+## 混入 trait
+
+示例代码如下,当点击事件发生时,这段代码会通过回调机制通知客户啊
+
+```scala
+package progscala2.traits.ui
+
+class ButtonWithCallbacks(val label: String,
+    val callbacks: List[() => Unit] = Nil) extends Widget {
+
+  def click(): Unit = {
+    updateUI()
+    callbacks.foreach(f => f())
+  }
+
+  protected def updateUI(): Unit = { /* logic to change GUI appearance */ }
+}
+
+object ButtonWithCallbacks {
+
+  def apply(label: String, callback: () => Unit) =
+    new ButtonWithCallbacks(label, List(callback))
+
+  def apply(label: String) =
+    new ButtonWithCallbacks(label, Nil)
+}
+```
+我们定义类型时应尽量做到职责分离,这样才能体现单一职责原则:每个类型只做一件事,不应该在一个类型中混杂多个职责
+
+我们希望把按钮相关的逻辑从回调逻辑中抽离出来,这样这两类逻辑都会变得更简单,更加模块化,也更易于测试和修改,可用性也很强,回调逻辑也很适合用于实现混入结构.我们将使用 `trait` 将回调逻辑从按钮中抽离出来,除此之外,我们会对逻辑抽离方式进行简单的概括,实际上,回调是调查者设计模式的一类特殊应用,因此我们创建了两个 `trait` 分别用于声明观察者模式中的 *主体(Subject)* 和 *观察者(Observer)* ,这两个 `trait` 同时实现了主体和观察者的部分功能, 之后我们会运用这两个 `trait` 处理回调行为,我们在例子中使用了一个简单的回调方法,统计按钮点击次数:
+
+```scala
+package progscala2.traits.observer
+
+trait Observer[-State] {                                             //
+  def receiveUpdate(state: State): Unit
+}
+
+trait Subject[State] {                                               //
+  private var observers: List[Observer[State]] = Nil                 //
+
+  def addObserver(observer:Observer[State]): Unit =                  //
+    observers ::= observer                                           //
+
+  def notifyObservers(state: State): Unit =                          //
+    observers foreach (_.receiveUpdate(state))
+}
+
+The trait for clients who want to be notified of state changes. They must implement the receiveUpdate message.
+
+The trait for subjects who will send notifications to observers.
+
+A list of observers to notify. It’s mutable, so it’s not thread-safe!
+
+A method to add observers.
+
+This expression means “prefix observer to observers and assign the result to observers.”
+
+A method to notify observers of state changes.
+```
+通常将混入 `Subject` 特征的类直接设置为状态类型参数是最便捷的做法,因此一旦某一对象的 `notifyObservers` 方法被调用了  
