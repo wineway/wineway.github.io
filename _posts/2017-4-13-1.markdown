@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(8)"
 author:     wineway
-tags: 		Scala  特质(trait) 笔记 未完成
+tags: 		Scala  特质(trait) 笔记
 subtitle:   Scala的 trait
 category:  project1
 visualworkflow: true
