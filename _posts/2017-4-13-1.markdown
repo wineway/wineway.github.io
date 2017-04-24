@@ -69,4 +69,216 @@ This expression means “prefix observer to observers and assign the result to o
 
 A method to notify observers of state changes.
 ```
-通常将混入 `Subject` 特征的类直接设置为状态类型参数是最便捷的做法,因此一旦某一对象的 `notifyObservers` 方法被调用了  
+通常将混入 `Subject` 特征的类直接设置为状态类型参数是最便捷的做法,因此一旦某一对象的 `notifyObservers` 方法被调用了,该实例直接将自己作为参数传入即可,例如直接传入 `this` 对象
+
+现在定义一个简化的 `Button` 类:
+
+```scala
+// src/main/scala/progscala2/traits/ui/Button.scala
+package progscala2.traits.ui
+
+class Button(val label: String) extends Widget {
+
+  def click(): Unit = updateUI()
+
+  def updateUI(): Unit = { /* logic to change GUI appearance */ }
+}
+```
+
+该类处理点击事件,我们接下来使用 `Subject` 特征, `Observable` 类 是 `Button` 类的子类,我们在该类混入 `Subject`
+
+```scala
+package progscala2.traits.ui
+import progscala2.traits.observer._
+
+class ObservableButton(name: String)                                 //
+    extends Button(name) with Subject[Button] {                      //
+
+  override def click(): Unit = {                                     //
+    super.click()                                                    //
+    notifyObservers(this)                                            //
+  }
+}
+
+A subclass of Button that mixes in observability.
+
+Extends Button and mixes in Subject and uses Button as the Subject type parameter, named State in the declaration of Subject.
+
+In order to notify observers, we have to override the click method. If there were other state-changing methods, all would require overrides.
+
+First, call the parent class click to perform the normal GUI update logic.
+
+Notify the observers, passing this as the State. In this case, there isn’t any state other than the “event” that a button click occurred.
+
+```
+>在实例化某一类型时混入 `trait` 声明, `trait` 前必须是 `with` 关键字
+
+### 可堆叠的特征
+
+我们引入仅用于观察 `Clickable` 事件的 `trait`:
+
+```scala
+package progscala2.traits.ui2
+import progscala2.traits.observer._
+
+trait ObservableClicks extends Clickable with Subject[Clickable] {
+  abstract override def click(): Unit = {        //
+    super.click()
+    notifyObservers(this)
+  }
+}
+```
+注意 `abstract override` ,因为 `super` 当前并未绑定某一真实实例,所以使用了 `abstract` 关键字,事实上,将该 `trait` 混入定义了 `click` 方法的具体事例中, `super` 便绑定了该实例, `abstract` 关键字提醒编译器,尽管 `ObservableClick.click` 方法提供了方法体,但 `click` 方法并没有完全实现.
+
+"JavaBean"规范提出了 **"可否决"事件(vetoable event)** :状态监听者可以否决这一变更,我们可以使用 `trait` 实现这一功能:
+
+```scala
+package progscala2.traits.ui2
+import progscala2.traits.observer._
+
+trait VetoableClicks extends Clickable {                             //
+  // Default number of allowed clicks.
+  val maxAllowed = 1                                                 //
+  private var count = 0
+
+  abstract override def click() = {
+    if (count < maxAllowed) {                                        //
+      count += 1
+      super.click()
+    }
+  }
+}
+
+Also extends Clickable.
+
+The maximum number of allowed clicks. (A “reset” feature would be useful.)
+
+Once the number of clicks exceeds the allowed value (counting from zero), no further clicks are sent to super.
+```
+我们可以通过 `override` 覆写该 `val` 值:
+
+```scala
+import progscala2.traits.ui2._
+import progscala2.traits.observer._
+
+// No override of "click" in Button required.
+val button =
+    new Button("Click Me!") with ObservableClicks with VetoableClicks {
+  override val maxAllowed = 2                                   //
+}
+
+class ClickCountObserver extends Observer[Clickable] {          //
+  var count = 0
+  def receiveUpdate(state: Clickable): Unit = count += 1
+}
+
+val bco1 = new ClickCountObserver
+val bco2 = new ClickCountObserver
+
+button addObserver bco1
+button addObserver bco2
+
+(1 to 5) foreach (_ => button.click())
+
+assert(bco1.count == 2, s"bco1.count ${bco1.count} != 2")       //
+assert(bco2.count == 2, s"bco2.count ${bco2.count} != 2")
+println("Success!")
+
+Override the value of maxAllowed to 2.
+
+Use the same ClickObserver as before.
+
+Note that the expected count is now 2, even though the actual number of button clicks is 5.
+```
+试着以下顺序:
+
+```scala
+val botton = new Button("Click me") with VetoableClicks with ObservableClicks
+```
+这是 `VetoableClicks` 无效,以下伪代码解释了每个例子中方法调用的结构:
+
+```scala
+// new Button("Click Me!") with VetoableClicks with ObservableClicks
+
+def ObservableClicks.click() = {
+  if (count < maxAllowed) {       // super.click => VetoableClicks.click
+    count += 1
+    {
+      updateUI()                  // super.click => Clickable.click
+    }
+  }
+  notifyObservers(this)
+}
+
+// new Button("Click Me!") with ObservableClicks with VetoableClicks
+
+def VetoableClicks.click() = {
+  if (count < maxAllowed) {
+    count += 1
+    {                             // super.click => ObservableClicks.click
+      {
+        updateUI()                // super.click => Clickable.click
+      }
+      notifyObservers(this)
+    }
+  }
+}
+
+```
+
+Scala使用 **线性化(linearization)算法** 解决具体类继承树中 `trait` 和类的优先级问题, `trait` 优先级遵循从右到左规则
+
+### 构造trait
+
+尽管 `trait` 定义体起到了主构造函数的作用,不过 `trait` 主构造函数并不允许为其提供参数列表
+
+`trait` 可以继承其他特征,同样可以继承自类,不过 `trait` 无法向其父构造函数传递参数,因此 `trait` 只能扩展自那些包含了无参主构造函数或无参辅助构造函数的类
+
+不过就像类一样 每次创建使用 `trait` 实例时,特整体会被执行:
+
+```scala
+trait T1 {
+  println(s"  in T1: x = $x")
+  val x=1
+  println(s"  in T1: x = $x")
+}
+
+trait T2 {
+  println(s"  in T2: y = $y")
+  val y="T2"
+  println(s"  in T2: y = $y")
+}
+
+class Base12 {
+  println(s"  in Base12: b = $b")
+  val b="Base12"
+  println(s"  in Base12: b = $b")
+}
+
+class C12 extends Base12 with T1 with T2 {
+  println(s"  in C12: c = $c")
+  val c="C12"
+  println(s"  in C12: c = $c")
+}
+
+println(s"Creating C12:")
+new C12
+println(s"After Creating C12")
+Running this script yields the following output:
+Creating C12:
+  in Base12: b = null
+  in Base12: b = Base12
+  in T1: x = 0
+  in T1: x = 1
+  in T2: y = null
+  in T2: y = T2
+  in C12: c = null
+  in C12: c = C12
+After Creating C12
+```
+
+### 选择类还是trait
+
+`trait` 是Scala实现混入的方法,用于大多数辅助行为,如果 `trait` 在大多数时候被用作父类,子类表现的就像这个父特征一样,请考虑是否将 `trait` 改为 `class`
+
+**一旦完成构造过程,该实例便应该一直处于某种已知的合法状态中**

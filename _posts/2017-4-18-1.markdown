@@ -9,9 +9,11 @@ visualworkflow: true
 ---
 # 1 Scheme 语法描述
 
-## 1.2 词法约定
 
-### 1.2.1 标识符
+## 2 词法约定
+
+
+### 2.1 标识符
 
 如果字母数字和扩展字符序列中的第一个字符不是任何数值的起始字符,他就是一个标识符,此外,`+` `-` 和 `...` 都是标识符:
 
@@ -20,13 +22,15 @@ visualworkflow: true
 |lambda| q|
 |list->vector| soup|
 |+| V17a|
-|<=?| a34kTMNs|
-|the-word-recursion-has-many-meanings|sdgfsd|
+|<=?|a34kTMNs|
+|the-word-recursion-has-many-meanings||
 
-- 标识符可以被用作一个变量或一个语法关键字
-- 当标识符作为常量或在常量内部出现时,他表示一个 *symbol*
 
-### 1.2.3 其他记法
+-   标识符可以被用作一个变量或一个语法关键字
+-   当标识符作为常量或在常量内部出现时,他表示一个 *symbol*
+
+
+### 2.3 其他记法
 
 |符号|含义|
 |----|---|
@@ -46,6 +50,92 @@ visualworkflow: true
 
 注: Racket 和 clojure 下中括号和小括号等价
 
-### 1.3.3 外部表示
+
+### 3.3 外部表示
 
 Scheme 中,任何构成表达式的字符序列就是某个对象的外部表示
+
+
+### 3.5 严格尾递归
+
+待补充
+
+
+## 4. 表达式
+
+
+### 4.1 基本表达式类型
+
+
+#### 4.1.1 变量引用
+
+`<variable>`
+
+
+#### 4.1.2 常量表达式
+
+`(quote <datum>)`
+`'<datum>`
+`<constant>`
+
+-   `quote` 和 `'` 在任何情况下等价
+-   使用 `set!` 等改变过程改变常量是一个错误
+
+
+#### 4.1.3 过程调用(也被称为组合式(*Combinations*))
+
+`(<operator> <operand1> ...)`
+
+
+#### 4.1.4 过程
+
+`(lambda <formals> <body>)`
+
+-   (⟨variable1 ⟩ . . . ): 过程拥有固定数量的参数。
+-   ⟨variable⟩: 过程拥有任意数量的参数。当过程被调用时，实参的序列被转换为一个新创建的表，该表存储在 ⟨variable⟩ 的绑定中。
+-   (⟨variable1 ⟩ . . . ⟨variablen ⟩ . ⟨variablen+1 ⟩): 如果一个由空格分隔的句点出现在最后一个变量之前，该过程就拥有 n 个或更多个参数，这里的 n 是句点前面形参的个数(至少要有一个)。存储在最后一个参数绑定中的值是一个新创建的表。除了已和其他形参匹配的所有其他实参外，剩余的实参都被存入该表中。
+
+
+#### 4.1.5 条件表达式
+
+`(if <test> <consequent> <alternate>)`
+`(if <test> <consequent>)`
+
+
+#### 4.1.6 赋值
+
+`(set! <variable> <expression>)`
+
+
+### 4.2 派生表达式类型
+
+
+#### 4.2.1 条件表达式
+
+`(cond <clause1> <clause2> ...)` 其中 `<clause>` 为 `(<test> <expression1> ...)` 或 `(<test> => <expression>)` ,最后一个 `<clause>` 可以是一个 `else` 子句,格式为 `(else <expression1> <expression2> ...)`
+
+其中最后一个 `<expression>` 被返回,为空则返回 `<test>` 的值,如果选中的 `<clause>` 使用 `=>` 这样的可选格式, `<expression>` 作为一个接受 `<test>` 返回参数的过程就会被求值
+
+
+`(case <key> <clause1> <clause>... )` 其中 `<clause>` 为 `((<datum1> ...) <expression1> <expression2> ...)` 其中 `<datum>` 为某个对象的外部表示,所有的 `<datum>` 必互不相同,最后一个 `<clause>` 可以为 `else` 子句, `(else <expression1> <expression2> ...)` (值比较使用 `eqv?`)
+
+
+`(and <test1> ...)`
+`(or <test1> ...)`
+
+
+#### 4.2.2 绑定结构
+
+`(let <bindings> <body>)` 其中 `<bindings>` 为 `((<variable> <init1>) ...)`
+`(let* <bindings> <body>)` 与 `let` 类似,但是绑定时从左至右完成,所以第二个绑定是在第一个绑定可见的环境中完成的
+`(letrec <bindings> <body>)`
+
+
+#### 4.2.3 顺序结构
+
+`(begin <expression> <expression> ...)` `<expression>` 从左至右顺序求值,最后一个作为值返回
+
+
+#### 4.2.4 迭代
+
+`(do ((<variable> <init1> <step1>) ...) (<test> <expression> ...) <command> ...)`
