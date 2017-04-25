@@ -5,4 +5,4 @@ description: "学习笔记与翻译"
 header-img: "img/home-bg.jpg"
 ---
 
-Computer Vision & Deep Learning
+Function Programming & Machine Learning

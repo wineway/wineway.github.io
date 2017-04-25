@@ -7,3 +7,46 @@ subtitle:   Scala的对象系统
 category:  project1
 visualworkflow: true
 ---
+
+# 继承转化
+
+
+## 逆变
+
+逆变最好的一个例子是一组 `trait FunctionN` ,Scala使用 `trait` 实现匿名函数, 例如:
+
+```scala
+List(1, 2, 3, 4) map (i => i + 3)
+```
+
+`(i => i + 3)` 实际上是一个语法糖, 编译器将其转化为 `scala.Function1` 的匿名子类,实现如下:
+
+```scala
+val f: Int => Int = new Function1[Int, Int] { //对象后面跟上参数列表的时候,就会调用默认的apply函数
+  def apply(i: Int) = i + 3
+}
+```
+
+再来讨论逆变 `trait Function1[-T1, -T2, +R] extends AnyRef` 的声明,所以函数在继承时都有混合变异的行为, 如下例:
+
+```scala
+class CSuper                { def msuper() = println("CSuper") }       //
+class C      extends CSuper { def m()      = println("C") }
+class CSub   extends C      { def msub()   = println("CSub") }
+
+var f: C => C = (c: C)      => new C             //
+    f         = (c: CSuper) => new CSub          //
+    f         = (c: CSuper) => new C             //
+    f         = (c: C)      => new CSub          //
+    f         = (c: CSub)   => new CSuper        //  COMPILATION ERROR!
+```
+
+**契约式设计** 解释了为什么这些规则是有意义的,这是 **里式规则** 的一种表现形式,我们尝试凭直觉理解这些规则
+
+函数变量 `f` 的类型时 `C => C` ,我们在第二次赋值 `(x: CSuper) => Csub` 符合声明,即参数逆变, 返回值协变
+
+为了了解这个声明为何是安全的,我们需要了解 `f` 是如何调用的, 以及我们可以对 `f` 背后的真正函数作哪些假设, 当我们说 `f` 类型时 `C => C` 时,我们其实定义了一个 *契约* ,这样任何有效的 `C` 值都可以传给 `f` , `f` 永远也不会返回 `C` 类值以外的任何值
+
+因此如果实际的函数类型为 `(x: CSuper) => Csub` ,该函数不仅可以接受任何 `C` 类值作为参数, 也可处理 `C` 的父类型的实例,或其父类型其他子类型的实例,所以犹豫只传入 `C` 的实例, 我们就永远不会超出 `f` 允许范围外的参数, 从某种意义上来说, `f` 比我们需要的更加宽容
+
+同样,当他只返回 `Csub` 时,这也是安全的,因为调用方可以处理 `C` 的实例,所以也一定可以处理 `Csub` 的实例,在这个意义上来说, `f` 比我们需要的更加 "严格"
