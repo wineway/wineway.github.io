@@ -111,7 +111,7 @@ First, call the parent class click to perform the normal GUI update logic.
 Notify the observers, passing this as the State. In this case, there isn’t any state other than the “event” that a button click occurred.
 
 ```
->在实例化某一类型时混入 `trait` 声明, `trait` 前必须是 `with` 关键字
+>在实例化某一类型时混入 `trait` 声明, `trait` 前必须是 `with` 关键字, `case` 类调用 `apply` 方法时不能混入 `trait`
 
 ### 可堆叠的特征
 

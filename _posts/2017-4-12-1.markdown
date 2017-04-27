@@ -87,6 +87,7 @@ Scala 经常引入包装类型来实现新类型, 这也被称为扩展方法(�
 10. 价值类必须是对象可引用的一个顶级类型或对象的一个成员
 
 比如下例中的 `Dollar` 类在运行时是被包装的类型 `Float`:
+
 ```scala
 class Dollar(val value: Float) extends AnyVal {
   override def toString = "$%.2f".format(value)
@@ -95,6 +96,7 @@ class Dollar(val value: Float) extends AnyVal {
 val benjamin = new Dollar(100)
 
 ```
+
 价值类可以是一个 `case` 类但是没有必要
 
 一个通用特征有以下特征:
@@ -132,6 +134,7 @@ Formatter formats the phone number the way we want it.
 
 Use Formatter.format.
 ```
+
 然而由于JVM的限制, 通用特征有时候会触发实例化(即实例的内存分配于堆中),这里将需要实例化的情况总结如下:
 1. 当价值类的实例被传递给函数作为参数,而该函数预期参数为通用特征且需要被实例实现,不过,如果函数的预期参数是价值类本身,则不需要实例化
 2. 价值类的实例被赋值给数组

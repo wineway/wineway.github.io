@@ -50,3 +50,164 @@ var f: C => C = (c: C)      => new C             //
 因此如果实际的函数类型为 `(x: CSuper) => Csub` ,该函数不仅可以接受任何 `C` 类值作为参数, 也可处理 `C` 的父类型的实例,或其父类型其他子类型的实例,所以犹豫只传入 `C` 的实例, 我们就永远不会超出 `f` 允许范围外的参数, 从某种意义上来说, `f` 比我们需要的更加宽容
 
 同样,当他只返回 `Csub` 时,这也是安全的,因为调用方可以处理 `C` 的实例,所以也一定可以处理 `Csub` 的实例,在这个意义上来说, `f` 比我们需要的更加 "严格"
+
+示例的最后一行同时打破了关于输入和输出类型的两个规则,,如果允许这个函数合法的赋值给 `f` 我们考虑下会发生什么
+
+在这种情况下,实际的 `f` 函数只知道如何处理 `CSub` 实例,但是调用者对此一无所知, 认为任何 `C` 实例都可以传如 `f` ,所以当 `f` 运行发生意外时,就可能导致失败, 即调用者试图把 `C` 实例传入一个只接受 `CSub` 而不是 `C` 的函数,同样的, 如果实际 `f` 能够返回一个 `CSuper` 实例, 这将超出调用者预期的返回值范围?
+
+
+### 可变类型的变异
+
+可变类型只允许非变异行为,因为他像是一个私有的字段,却又存在共有的读写访问方法,即使可变字段是共有的并且没有显示定义访问方法,该字段依然会像私有字段一般运行
+
+对于 `getter` 和 `setter` 方法中的可变字段而言,他在du'fang'fa读方法中出于协变的位置,而在写方法中出于逆变的位置
+
+```
+Variance of Mutable Types
+All the parameterized types we’ve discussed so far have been immutable types. What about the variance behavior of mutable types? The short answer is that only invariance is allowed. Consider this example:
+
+// src/main/scala/progscala2/objectsystem/variance/mutable-type-variance.scX
+
+scala> class ContainerPlus[+A](var value: A)
+<console>:34: error: covariant type A occurs in contravariant position
+in type A of value value_=
+       class ContainerPlus[+A](var value: A)
+             ^
+
+scala> class ContainerMinus[-A](var value: A)
+<console>:34: error: contravariant type A occurs in covariant position
+in type => A of method value
+       class ContainerMinus[-A](var value: A)
+                                    ^
+
+The problem with a mutable field is that it behaves like a private field with public read and write accessor methods, even if the field is actually public and has no explicit accessor methods.
+Recall from Fields in Classes that def value_=(newA: A): Unit+ is the signature the compiler interprets as the setter for variable value. That is, we can write an expression myinstance.value = someA and this method will be called. Note that the first error message uses this method signature and complains that we’re using covariant type A in a contravariant position.
+The second error message mentions a method signature => A. That is, a function that takes no arguments and returns an A, just like the by-name parameters we first saw in Call by Name, Call by Value.
+Here’s another way to write the declaration using these methods explicitly, which looks more like traditional Java code:
+class ContainerPlus[+A](var a: A) {
+  private var _value: A = a
+  def value_=(newA: A): Unit = _value = newA
+  def value: A = _value
+}
+Why must the A passed to value_=(newA: A) be contravariant? This doesn’t seem right, because we’re assigning a new value to _value, but if the new value can be a supertype of A, then we’ll get a type error, because _value must be of type A, right?
+Actually, that’s the wrong way to think about the situation. The covariant/contravariant rules apply to how subclasses behave relative to superclasses.
+Assume for a moment that our declaration is valid. For example, we could instantiate ContainerPlus[C], using our C, CSub, and CSuper from before:
+val cp = new ContainerPlus(new C)   //
+cp.value = new C                    //
+cp.value = new CSub                 //
+cp.value = new CSuper               //
+
+Type parameter A is now C.
+
+Valid: we’re just using the same type instance.
+
+Valid for the usual object-oriented reasons, since CSub is a subtype of C.
+
+Compilation error, because a CSuper instance can’t be substituted for a C instance.
+It’s only when considering subtypes of ContainerPlus that trouble ensues:
+val cp: ContainerPlus[C] = new ContainerPlus(new CSub)   //
+cp.value = new C             //
+cp.value = new CSub          //
+cp.value = new CSuper        //
+
+Would be valid, if ContainerPlus[+A] were valid.
+
+From the declared type of c, this should be valid and this is why the argument type must be contravariant, but the actual value_= method for the instance can’t accept a C instance, because its value field is of type CSub.
+
+OK.
+
+OK.
+The expression labeled  illustrates why the method argument needs to be contravariant. The user of c expects the instance to work with C instances. By looking at the actual implementation of value_=, we already know that we can’t actually support contravariance, but let’s ignore that for a moment and consider what happens if we change the variance annotation:
+class ContainerMinus[-A](var a: A) {
+  private var _value: A = a
+  def value_=(newA: A): Unit = _value = newA
+  def value: A = _value
+  “}
+  We already know from the error messages at the beginning of this section that this is considered OK for the value_= method (even though it isn’t actually OK), but now we get the second error we saw previously. The A is the return type for the value method, so A is in a covariant position.
+  Why must it be covariant? This is a little more intuitive. Again, the behavior of subtypes is the key. Once again, assume for a moment that the compiler allows us to instantiate ContainerMinus instances:
+  val cm: ContainerMinus[C] = new ContainerMinus(new CSuper)   //
+  val c: C      = cm.value        //
+  val c: CSuper = cm.value        //
+  val c: CSub   = cm.value        //
+
+  Would be valid, if ContainerMinus[-A] were valid.
+
+  cm thinks its value method returns a C, but the actual value method for the instance returns a CSuper. Oops…
+
+  OK.
+
+
+Fails for the same reason in line .
+So, if you think of a mutable field in terms of a getter and setter method, it appears in both covariant position when read and contravariant position when written. There is no such thing as a type parameter that is both contravariant and covariant, so the only option is for A to be invariant for the type of a mutable field.
+```
+
+### Scala 和 Java 中的变异
+
+变异性为在Scala中定义于类型的声明过程,而在Java中定义于使用过程,Java程序员很容易指定错误的变异株是,从而导致不安全的代码,java的类型系统另一个问题是, `Array` 是协变的
+
+## Scala的类型层次系统
+
+`Any` 出于结构树根部位置, 没有父类, 但有三个子类:
+-   `AnyVal` 价值类型和价值类的父类(9个具体子类,七个是数字值类型 `Byte` `Char` `Short` `Int` `Long` `Float` `Double`,两个非数字值类型 `Unit` `Boolean`)
+-   `AnyRef` 所有引用类型的父类
+-   universal trait ,新引入的 `trait` 类型
+
+`Nothing` 和 `Null` 是位于类型系统底层的两个特殊类型, 其中 `Nothing` 是所有其他类型的子类, `Null` 是所有引用类型的子类
+
+`Nothing` 两个用途,一个是解决 `Nil` 问题,一个是表示终止程序,比如 `???` 函数,由于其返回 `Nothing` 所以可以被任何函数调用
+
+### Product, case 类和元组
+
+你定义的 `case` 类会混入 `scala.Product` 特质, 他提供了几个关于实例字段的通用方法:
+
+```scala
+case class Person(name: String, age: Int)
+
+val p: Product = Person("Dean", 12)
+
+p.productElement(0) // Any = "Dean"
+
+p.productArity // Int = 2
+```
+
+尽管以通用方法返回字段非常有用,但是由于对各个字段使用的都是 `Any` 类型使这种机制的作用受到了局限
+对于不同的字段数量, 也有 `Product` 的子类型, 如 `scala.Product2` ,事实上 `TupleN` 类型就继承了对应的 `ProductN` 特质, 并提供了 `_1` 到 `_N` 方法的具体实现
+
+# Predef 对象
+
+只要你编译代码,Scala编译器就会自动导入顶层的Scala包,以及在java.lang包中的定义,因此许多常见的Java和Scala类型都可以不经过明显的导入或提供完整的名称就可以使用,另外,编译器还导入了 `Predef` 对象中的一些定义,它提供了一些很实用的定义
+
+## 隐式转换
+
+`Predef` 定义了很多隐式规则,以下是一组转换对 `AnyVal` 类型的包装
+
+```scala
+@inline implicit def byteWrapper(x: Byte)       = new runtime.RichByte(x)
+@inline implicit def shortWrapper(x: Short)     = new runtime.RichShort(x)
+@inline implicit def intWrapper(x: Int)         = new runtime.RichInt(x)
+@inline implicit def charWrapper(c: Char)       = new runtime.RichChar(c)
+@inline implicit def longWrapper(x: Long)       = new runtime.RichLong(x)
+@inline implicit def floatWrapper(x: Float)     = new runtime.RichFloat(x)
+@inline implicit def doubleWrapper(x: Double)   = new runtime.RichDouble(x)
+@inline implicit def booleanWrapper(x: Boolean) = new runtime.RichBoolean(x)
+```
+
+`Rich*` 类型提供了额外的方法,类似于 `<=` 和 `compare` 等比较方法, `@inline` 标记鼓励编译器进行内联,即直接将 `new runtime.RichY(x)` 逻辑插入代码中
+
+因为根据字节码要求,额外的方法迫使程序在堆中分配一个实例,所以拥有单独的 `Rich*` 类型是为了避免堆内存的分配
+
+在 `scala.collection.mutable.WrappedArray` 中还存在用于包装 Java 可变数组的方法,为数组提供一些方法
+
+```scala
+implicit def wrapIntArray(xs: Array[Int]): WrappedArray[Int]
+implicit def wrapDoubleArray(xs: Array[Double]): WrappedArray[Double]
+implicit def wrapLongArray(xs: Array[Long]): WrappedArray[Long]
+implicit def wrapFloatArray(xs: Array[Float]): WrappedArray[Float]
+implicit def wrapCharArray(xs: Array[Char]): WrappedArray[Char]
+implicit def wrapByteArray(xs: Array[Byte]): WrappedArray[Byte]
+implicit def wrapShortArray(xs: Array[Short]): WrappedArray[Short]
+implicit def wrapBooleanArray(xs: Array[Boolean]): WrappedArray[Boolean]
+implicit def wrapUnitArray(xs: Array[Unit]): WrappedArray[Unit]
+```
+
+这样做的原因是,Java原生类型的数组更为高效
