@@ -369,6 +369,7 @@ List(1, 2) sameElements List(1, 2)      // = true
 
 <设计模式> 书中描述的 **模板方法模式(template method pattern)** 中,父类提供某一方法的具体实现,并以此定义了某一行为的主要轮廓,需要使用多态行为时,该方法也会调用一些 `protected` 抽象方法,在此之后,子类型只需要实现 `protected` 抽象方法即可
 
+
 ```scala
 case class Address(city: String, state: String, zip: String)
 case class Employee(name: String, salary: Double, address: Address)
