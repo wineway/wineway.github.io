@@ -410,4 +410,255 @@ The method for calculating federal taxes.
 The method for calculating state taxes.
 
 ```
-对于不要覆写父类具体方法可能有两个例外,一是
+对于不要覆写父类具体方法可能有两个例外,一是父类实现方法对于子类确实没有用途,例如 `toString` `equals` `hashCode` , 二是你需要混入一些非堆叠行为,例如覆写一些重要方法,以便调用日志接口,在子类覆写中,你调用日志方法时,使用 `super` 对象并不会影响该方法的外部行为,前提是你能正确调用父类方法.
+
+假如某一声明中包含 `final` 关键字,那么Scala不允许覆写或继承该声明
+
+## 覆写抽象字段和具体字段
+
+### 覆写 `trait` 中的字段:
+
+```scala
+trait AbstractT2 {
+  println("In AbstractT2:")
+  val value: Int
+  val inverse = 1.0/value      //
+  println("AbstractT2: value = "+value+", inverse = "+inverse)
+}
+
+val obj = new AbstractT2 {
+  println("In obj:")
+  val value = 10
+}
+println("obj.value = "+obj.value+", inverse = "+obj.inverse)
+```
+我们通过 `new AbstractT2` 语句实例化一个隐式扩展了 `AbstractT2` 的匿名类, `inverse` 变量被过早计算了,编译器认为他是无穷大,Scala为此提供了两种解决方案,一种是添加 `lazy` 关键字,并注释 `println` 语句
+
+第二种方式是 **预设初始化字段**
+
+```scala
+val obj = new {
+  val value = 10
+} with AbstractT2
+```
+在 `with AbstractT2` 子句执行之前,我们便已经实例化了一个匿名内部类,并在代码块中初始了该内部类的值字段
+
+在执行类体之间,该类所使用的 `trait` 的代码体便已经执行完毕,这也意味着特征体对字段进行初始化赋值之后,类才对该字段重新赋值
+
+尽可能避免在类或 `trait` 中使用 `var` 字段,而是用公共 `var` 字段则尤其危险
+
+### 覆写类字段
+
+```scala
+abstract class AbstractC1 {
+  val name: String
+  var count: Int
+}
+
+class ClassWithAbstractC1 extends AbstractC1 {
+  val name = "ClassWithAbstractC1"
+  var count = 1
+}
+
+val c = new ClassWithAbstractC1()
+println(c.name)
+println(c.count)
+```
+
+其中 `name` `count` 是抽象字段,java中不支持抽象字段只支持抽象方法
+
+### 腹泻抽象类型
+
+```scala
+abstract class BulkReader {
+  type In
+  val source: In
+  def read: String  // Read source and return a String
+}
+
+class StringBulkReader(val source: String) extends BulkReader {
+  type In = String
+  def read: String = source
+}
+```
+不同于字段和方法,我们无法对具体的类型定义进行覆写
+
+## 统一访问原则
+
+>The Uniform Access Principle was put forth by Bertrand Meyer. It states "All services offered by a module should be available through a uniform notation, which does not betray whether they are implemented through storage or through computation." This principle applies generally to object-oriented programming languages. In simpler form, it states that there should be no difference between working with an attribute, precomputed property, or method/query.
+
+方法和字段可以互相覆写,无参方法可以视为 **属性读取器(property reader)** ,如果你尝试使用 `var` 变量覆写无参方法,系统将会返回错误 `写方法 override name_= 无法覆写任何方法` ,例如我们在某个 `trait` 中使用了 `def name: String` 语句声明抽象方法,之后在实现子类中使用 `var name = "foo"` 语句对该方法进行覆写,等同于腹泻了两个方法,原方法和 `def name_=()` 方法
+
+注意Scala并不能保证被 `val` 覆写的方法每次调用返回值相同
+
+## 对象层次结构的线性化算法
+
+由于采用单继承模型,加入我们不使用可混入的 `trait` ,继承层次结构将会变成一条直线,将各个祖先节点依次连接,如果引入 `trait` 每个类型都有可能继承自其他 `trait` 或类,继承层次关系便形成了一个有向无环图
+
+线性化算法是一类用于对层级结构图进行扁平化处理的算法,引入该算法是为了解决方法查找优先级问题,构造函数调用顺序, `super` 关键字绑定等一系列问题
+
+Scala按照从右到左的声明顺序对这些 `trait` 进行绑定:
+
+```scala
+class C1 {
+  def m = print("C1 ")
+}
+
+trait T1 extends C1 {
+  override def m = { print("T1 "); super.m }
+}
+
+trait T2 extends C1 {
+  override def m = { print("T2 "); super.m }
+}
+
+trait T3 extends C1 {
+  override def m = { print("T3 "); super.m }
+}
+
+class C2 extends T1 with T2 with T3 {
+  override def m = { print("C2 "); super.m }
+}
+
+val c2 = new C2
+c2.m
+Running this script yields the following output:
+C2 T3 T2 T1 C1
+```
+
+接下来我们观察构造函数的调用顺序:
+
+```scala
+class C1 {
+  print("C1 ")
+}
+
+trait T1 extends C1 {
+  print("T1 ")
+}
+
+trait T2 extends C1 {
+  print("T2 ")
+}
+
+trait T3 extends C1 {
+  print("T3 ")
+}
+
+class C2 extends T1 with T2 with T3 {
+  println("C2 ")
+}
+
+val c2 = new C2
+Running this script yields this output:
+C1 T1 T2 T3 C2
+```
+
+与引用类型不同,值类型是 `AnyVal` 类的子类,他们均为 `abstract final` 类型,编译器负责初始化这些值类型,由于我们无法编写这些值类型的子类,那么新创建的价值类的线性化算法是什么样子呢,答案是和其他类是一样的
+
+我们使用一组 `C*` 类对线性化算法进行演示,这组类中,所有的类和 `trait` 均定义了方法 `m` 由于下面实例的类型时 `C2` ,因此 `C2` 类中定义的 `m` 方法会最早调用. `C2.m` 调用了 `super.m` 方法,该方法被解析为 `T3.m` 对输出结果进行分析,发现方法查找并未采用深度优先算法,而是采用了广度优先算法,并"延后" 执行已查找到的方法:
+
+```scala
+class C1 {
+  def m(previous: String) = print(s"C1($previous)")
+}
+
+trait T1 extends C1 {
+  override def m(p: String) = { super.m(s"T1($p)") }
+}
+
+trait T2 extends C1 {
+  override def m(p: String) = { super.m(s"T2($p)") }
+}
+
+trait T3 extends C1 {
+  override def m(p: String) = { super.m(s"T3($p)") }
+}
+
+class C2 extends T1 with T2 with T3 {
+  override def m(p: String) = { super.m(s"C2($p)") }
+}
+
+val c2 = new C2
+c2.m("")
+Now we pass the name of the caller of super.m as a parameter, then C1 prints out who called it. Running this script yields the following output:
+C1(T1(T2(T3(C2()))))
+```
+下面是线性化算法的具体算法
+
+|线性化算法|
+|--------|
+|1. 当前实例的具体类型会被放到线性化后首个元素位置处|
+|2. 按照该实例父类型的顺序从右到左的放置节点,针对每个父类型执行线性化算法,并将执行结果合并(暂且不对 AnyRef 和 Any 类型进行处理)|
+|3. 按照从左到右的顺序对类型节点进行检查,如果有类型节点在该节点右边出现过,那么将该类型移除|
+|4. 在类型线性化层次结构末尾添加 AnyRef 和 Any 类型(如果是针对价值类执行线性化算法,使用 AnyVal 代替 AnyRef)|
+
+
+下面是一个实例:
+
+```scala
+class C1 {
+  def m = print("C1 ")
+}
+
+trait T1 extends C1 {
+  override def m = { print("T1 "); super.m }
+}
+
+trait T2 extends C1 {
+  override def m = { print("T2 "); super.m }
+}
+
+trait T3 extends C1 {
+  override def m = { print("T3 "); super.m }
+}
+
+class C2A extends T2 {
+  override def m = { print("C2A " ); super.m }
+}
+
+class C2 extends C2A with T1 with T2 with T3 {
+  override def m = { print("C2 "); super.m }
+}
+
+def calcLinearization(obj: C1, name: String) = {
+  print(s"$name: ")
+  obj.m
+  print("AnyRef ")
+  println("Any")
+}
+
+calcLinearization(new C2, "C2 ")
+println("")
+calcLinearization(new T3 {}, "T3 ")
+calcLinearization(new T2 {}, "T2 ")
+calcLinearization(new T1 {}, "T1 ")
+calcLinearization(new C2A, "C2A")
+calcLinearization(new C1, "C1 ")
+
+The output is the following:
+
+C2 : C2 T3 T1 C2A T2 C1 AnyRef Any
+
+T3 : T3 C1 AnyRef Any
+T2 : T2 C1 AnyRef Any
+T1 : T1 C1 AnyRef Any
+C2A: C2A T2 C1 AnyRef Any
+C1 : C1 AnyRef Any
+```
+计算过程如下:
+
+|#|Linearization|Description|
+|----|-----|-----|
+|1|C2|Add the type of the instance.|
+|2|C2, T3, C1|Add the linearization for T3 (farthest on the right).|
+|3|C2, T3, C1, T2, C1|Add the linearization for T2.|
+|4|C2, T3, C1, T2, C1, T1, C1|Add the linearization for T1.|
+|5|C2, T3, C1, T2, C1, T1, C1, C2A, T2, C1|Add the linearization for C2A.|
+|6|C2, T3, T2, T1, C2A, T2, C1|Remove duplicates of C1; all but the last C1.|
+|7|C2, T3, T1, C2A, T2, C1|Remove duplicates of T2; all but the last T2.|
+|8|C2, T3, T1, C2A, T2, C1, AnyRef, Any|Finish!|
+
+算法做的其实就是首先将子类都放置好,再将共享类型放到线性化列表的右端.
+
+>886,去写作业了,后面的类型系统,元编程,集合库等等的大概一周到两周以后回来继续
