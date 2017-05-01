@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala学习笔记(9)"
 author:     wineway
-tags: 		Scala  对象系统 笔记 未完成
+tags: 		Scala  对象系统 笔记
 subtitle:   Scala的对象系统
 category:  project1
 visualworkflow: true
