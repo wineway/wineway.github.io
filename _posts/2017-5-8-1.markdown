@@ -55,13 +55,15 @@ object TutorialApp extends JSApp {
 ```scala
 //前面会更新好多依赖
 [info] Compiling 1 Scala source to /home/wineway/Documents/web/target/scala-2.12/classes...
-[info] 'compiler-interface' not yet compiled for Scala 2.12.2. Compiling...
+[info] 'compiler-interface` not yet compiled for Scala 2.12.2. Compiling...
 [info]   Compilation completed in 12.137 s
 [info] Fast optimizing /home/wineway/Documents/web/target/scala-2.12/scala-js-tutorial-fastopt.js
 [info] Running tutorial.webapp.TutorialApp
 Hello world!
 [success] Total time: 86 s, completed May 8, 2017 10:12:26 AM
 ```
+
+
 >npm install source-map-support 使用这个查看文件树
 
 # 集成 HTML
@@ -93,3 +95,75 @@ Hello world!
 因为 `TutorialApp` 继承了 `js.JSApp` 并且我们在 `build` 中设置了 `scalaJSUseMainModuleInitializer := true` , `TutorialApp.main()` 方法会在 `-fastopt.js` 结尾自动调用,然后打开这个HTML,你会在浏览器JS控制台看到 `HelloWorld` 信息
 
 # 使用 DOM
+
+## 添加 DOM 库
+
+在 `sbt` 中添加 `libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"` 然后 `reload`
+
+## 使用 DOM 库
+
+```scalajs
+import org.scalajs.dom
+import dom.document
+```
+
+`dom` 是 JS DOM 的根,对应的是 JS 的 global scope,我们为了方便额外的导入了 `document` ,我们通过添加代码添加一个 `<p>` 节点
+
+```scala
+def appendPar(targetNode: dom.Node, text: String): Unit = {
+  val parNode = document.createElement("p")
+  val textNode = document.createTextNode(text)
+  parNode.appendChild(textNode)
+  targetNode.appendChild(parNode)
+}
+```
+然后在 `main` 函数中添加:
+
+```scala
+def main(): Unit = {
+  appendPar(document.body, "Hello World")
+}
+```
+
+然后重新编译,也可以在 sbt 中使用 `~fastOptJS` 命令使其不断编译
+
+# 接受用户输入
+
+我们添加一个方法到 `TutorialApp` ,当点击按钮时候将会被调用,添加之前需要导入头文件 `import scala.scalajs.js.annotation.JSExportTopLevel`,这里有更多 [Export Scala.js API to JavaScript](https://www.scala-js.org/doc/interoperability/export-to-javascript.html):
+
+```scala
+@JSExportTopLevel("addClickedMessage")//告诉编译器作为JS的 top-level 函数是可调用的
+def addClickedMessage(): Unit = {
+  appendPar(document.body, "You clicked the button!")
+}
+```
+然后我们在 HTML 文件中添加 `click` 按钮
+
+```scala
+<button id="click-me-button" type="button" onclick="addClickedMessage()">
+  Click me!
+</button>
+```
+
+# 使用 jQuery
+
+`build.sbt` 中替换 `libraryDependencies += "be.doeraene" %%% "scalajs-jquery" % "0.9.1"`
+
+jQuery 依赖 DOM 所以没有必要添加之前的 DOM,中断 `~fastOptJS` ,然后 `reload` ,然后开始 `~fastOptJS`
+
+在 `TutorialApp.scala` 中移除 DOM ,添加 jQuery `import org.scalajs.jquery.jQuery` ,然后我们可以在代码中使用 `jQuery` 对象了
+
+我们现在可以移除 `appendPar` 和调用用下面这些代码: `jQuery("body").append("<p>[message]</p>")` ,`[message]` 是原始传递到 `appendPar` 的字符串,如果你尝试刷新你的页面你会发现他不工作而且在控制台报错,在此之前你需要添加 JS 库依赖,在 build.sbt 中添加
+```scala
+skip in packageJSDependencies := false
+jsDependencies +=
+  "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js"
+```
+这个会创建 `scala-js-tutorial-jsdeps.js` 然后在 HTML 文件中添加
+
+```HTML
+<!-- Include JavaScript dependencies -->
+<script type="text/javascript" src="./target/scala-2.12/scala-js-tutorial-jsdeps.js"></script>
+```
+
+然后就可以编译使用了
