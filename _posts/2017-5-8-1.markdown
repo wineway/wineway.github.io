@@ -1,0 +1,95 @@
+---
+layout:     post
+title:      "[笔记]Scala.js tutorial"
+author:     wineway
+tags: 		Scalajs 未完成
+subtitle:   Scala.js 入门
+category:  project1
+visualworkflow: true
+---
+
+正好最近有web开发课程,顺便学习一下 `scala.js` 好了
+
+# 建立 sbt 工程
+
+新建 sbt 工程,添加 `scala.js sbt plugin` ,并在工程中 enable:
+
+```
+//project/plugins.sbt
+addSbtPlugin("org.scala-js" % "sbt-scalajs" % "0.6.16")
+```
+
+```
+//build.sbt
+enablePlugins(ScalaJSPlugin)
+
+name := "Scala.js Tutorial"
+scalaVersion := "2.12.2" // or any other Scala version >= 2.10.2
+
+// This is an application with a main method
+scalaJSUseMainModuleInitializer := true
+```
+
+```
+//project/build.properties
+sbt.version=0.14.0
+```
+
+# 建立 HelloWorld 应用
+
+```scala
+//src/main/scala/tutorial/webapp/TutorialApp.scala
+
+package tutorial.webapp
+
+import scala.scalajs.js.JSApp
+
+object TutorialApp extends JSApp {
+  def main(): Unit = {
+    println("Hello world!")
+  }
+}
+```
+然后 `run` 可以看到以下输出
+
+```scala
+//前面会更新好多依赖
+[info] Compiling 1 Scala source to /home/wineway/Documents/web/target/scala-2.12/classes...
+[info] 'compiler-interface' not yet compiled for Scala 2.12.2. Compiling...
+[info]   Compilation completed in 12.137 s
+[info] Fast optimizing /home/wineway/Documents/web/target/scala-2.12/scala-js-tutorial-fastopt.js
+[info] Running tutorial.webapp.TutorialApp
+Hello world!
+[success] Total time: 86 s, completed May 8, 2017 10:12:26 AM
+```
+>npm install source-map-support 使用这个查看文件树
+
+# 集成 HTML
+
+1. 生成编译后的 单个 JS 文件
+2. 创建 HTML 页面包含 上文件
+
+## 生成 JS
+
+在 sbt 中使用 `fastOptJS` 命令将 `scala` 编译为 `.js` 生成在 `target/scala-2.12/scala-js-tutorial-fastopt.js` ,过程中可能执行一些优化.
+
+## 创建 HTML 页面
+
+```HTML
+<!--index-dev.html-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>The Scala.js Tutorial</title>
+  </head>
+  <body>
+    <!-- Include Scala.js compiled code -->
+    <script type="text/javascript" src="./target/scala-2.12/scala-js-tutorial-fastopt.js"></script>
+  </body>
+</html>
+```
+因为 `TutorialApp` 继承了 `js.JSApp` 并且我们在 `build` 中设置了 `scalaJSUseMainModuleInitializer := true` , `TutorialApp.main()` 方法会在 `-fastopt.js` 结尾自动调用,然后打开这个HTML,你会在浏览器JS控制台看到 `HelloWorld` 信息
+
+# 使用 DOM
