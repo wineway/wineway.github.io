@@ -167,3 +167,116 @@ jsDependencies +=
 ```
 
 然后就可以编译使用了
+
+# 使用 scala.js setupUI
+
+我们想要移除 `onclick` 属性,在移除这个属性之后我们添加 `setupUI` 方法,我们使用 `jQuery` 去添加按钮的事件控制,我们也移除了 `HelloWorld` 信息到函数中.
+
+```scala
+def setupUI(): Unit = {
+    jQuery("#click-me-button").click(() => addClickedMessage())
+    jQuery("body").append("<p>Hello World</p>")
+  }
+```
+
+因为我们不再从 JS 中调用 `addClickedMessage` 所以我们可以移除 `@JSExportTopLevel` 和相关的 import  
+
+最终我们在主函数中调用 `jQuery` 为了去计算 `setupUI` ,DOM 被加载一次:
+
+```scala
+def main():Unit = {
+  jQuery(() => setupUI)
+}
+```
+
+# 测试
+
+当我们调用 `run` 命令的时候会报错,jQuery 没有被正确的加载,因为没有可用的 DOM 在 Node.js 里,我们需要在 `build.sbt` 中添加 : `jsDependencies += RuntimeDOM` ,然后我们使用 `jsdom` 假装 Node.js 中的 DOM ,使用之前我们需要安装 `npm install jsdom` 然后我们 `run` 会发现成功运行
+
+就像其他依赖库,如果你依赖依赖于 DOM 的库,那么你只要 依赖 DOM 就可以.
+
+## 添加 uTest
+
+在 `build.sbt` 中添加:
+```
+libraryDependencies += "com.lihaoyi" %%% "utest" % "0.4.4" % "test"
+testFrameworks += new TestFramework("utest.runner.Framework")
+```
+
+然后我们添加一个简单的测试单元:
+
+```scala
+//src/test/scala/tutorial/webapp/TutorialTest.scala
+
+package tutorial.webapp
+
+import utest._
+
+import org.scalajs.jquery.jQuery
+
+object TutorialTest extends TestSuite {
+
+  // Initialize App
+  TutorialApp.setupUI()
+
+  def tests = TestSuite {
+    'HelloWorld {
+      assert(jQuery("p:contains('Hello World')").length == 1)
+    }
+  }
+}
+```
+这个测试使用 jQuery 确认我们的页面 setup 后包含一个 `<p>` 成员包含字符文本 `HelloWorld`
+
+## 一个更复杂的测试
+
+我们也想测试我们的按钮的功能。为此，我们面临另一个小问题：测试时按钮不存在，因为测试以一个空的DOM树开头。为了解决这个问题，我们在setupUI方法中创建了一个按钮，并将其从HTML中删除:
+
+```scala
+jQuery("""<button type="button">Click me!</button>""")
+  .click(addClickedMessage _)
+  .appendTo(jQuery("body"))
+```
+
+这样带来了另一个优势,我们不再需要给他一个 ID 而可以直接使用 JQuery 对象去安装按钮控制器
+
+现在我们在 `HelloWorld` 测试下定义 `ButtonClick` 测试:
+
+```scala
+'ButtonClick {
+  def messageCount =
+    jQuery("p:contains('You clicked the button!')").length
+
+  val button = jQuery("button:contains('Click me!')")
+  assert(button.length == 1)
+  assert(messageCount == 0)
+
+  for (c <- 1 to 5) {
+    button.click()
+    assert(messageCount == c)
+  }
+}
+```
+
+# full 优化
+
+Scala.js sbt 拓展可以使用 Google Closure Compiler 的进一步优化 `>fullOptJS` ,如果你想要在 run 和 test 使用全优化版本,你需要改变 sbt 的 `stage`设置 `> set scalaJSStage in Global := FullOptStage`,我们也需要创建我们最终的全优化 HTML 文件 `scalajs-tutorial.html` 包含全优化代码:
+```HTML
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>The Scala.js Tutorial</title>
+  </head>
+  <body>
+    <!-- Include JavaScript dependencies -->
+    <script type="text/javascript" src="./target/scala-2.12/scala-js-tutorial-jsdeps.js"></script>
+    <!-- Include Scala.js compiled code -->
+    <script type="text/javascript" src="./target/scala-2.12/scala-js-tutorial-opt.js"></script>
+  </body>
+</html>
+```
+
+# 总结
+
+安装程序依赖于服务器栈。一个常见的选择是 [sbt-web](https://github.com/sbt/sbt-web) ,[sbt-web-scalajs](https://github.com/vmunier/sbt-web-scalajs),[sbt-gzip](https://github.com/sbt/sbt-gzip) 如果你有play或AKKA-HTTP服务器
