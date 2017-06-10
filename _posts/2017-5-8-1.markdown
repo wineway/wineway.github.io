@@ -2,7 +2,7 @@
 layout:     post
 title:      "[笔记]Scala.js tutorial"
 author:     wineway
-tags: 		Scalajs 未完成
+tags: 		Scalajs
 subtitle:   Scala.js 指南
 category:  project1
 visualworkflow: true
