@@ -247,6 +247,28 @@ Akka中有两种类型的监管策略： `OneForOneStrategy` 和 `AllForOneStrat
 
 请注意，在多对一监管者下创建一个临时的actor会导致一个问题：临时actor的失败上升会使所有永久actor受到影响。如果这不是所期望的，安装一个中间监管者；这可以很容易地通过为工作者声明大小为1的路由器来完成.
 
+## Actor引用, 路径与地址
+
+![Actor引用, 路径与地址](http://udn.yyuap.com/doc/akka-doc-cn/2.3.6/scala/book/chapter2/ActorPath.png)
+
+### 什么是Actor引用？
+
+Actor引用是 ActorRef 的子类，其最重要的目的是支持向它所代表的actor发送消息。每个actor通过self字段来访问自己的标准（本地）引用；在给其它actor发送的消息中也缺省包含这个引用。反过来，在消息处理过程中，actor可以通过sender()方法来访问到当前消息的发送者的引用。
+
+根据actor系统的配置，支持几种不同类型的actor引用：
+
+- 纯本地actor引用，在配置为不使用网络功能的actor系统中使用。这些actor引用如果通过网络连接传给远程的JVM，将不能正常工作。
+- 本地actor引用，在配置为使用远程功能的actor系统中使用，来代表同一个JVM的actor。为了能够在被发送到其它节点时仍然可达，这些引用包含了协议和远程地址信息。
+- 本地actor引用的一个子类，用在路由器中（routers，即混入 了 Router trait的actor）。它的逻辑结构与之前的本地引用是一样的，但是向它们发送的消息会被直接重定向到它的子actor。
+- 远程actor引用，代表可以通过远程通讯访问的actor，即向他们发送消息时会透明地对消息进行序列化，并发送到别的JVM。
+- 有几种特殊的actor引用类型，在实际用途中比较类似本地actor引用：
+* PromiseActorRef 表示一个Promise，其目的是通过一个actor返回的响应来完成。它是由 akka.pattern.ask 创建的。
+* DeadLetterActorRef是死信服务的缺省实现，所有接收方被关闭或不存在的消息都被重新路由在此。
+* EmptyLocalActorRef是当查找一个不存在的本地actor路径时Akka返回的：它相当于DeadLetterActorRef，但是它保有其路径因此可以在网络上发送，并与其它相同路径的存活的actor引用进行比较，其中一些存活的actor引用可能在该actor消失之前被得到。
+- 然后有一些内部实现，你应该永远不会用上：
+* 有一个actor引用并不表示任何actor，只是作为根actor的伪监管者存在，我们称它为“时空气泡穿梭者”。
+* 在actor创建设施启动之前运行的第一个日志服务，是一个伪actor引用，它接收日志事件并直接显示到标准输出上；它就是 Logging.StandardOutLogger。
+
 
 
 
