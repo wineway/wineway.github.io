@@ -7,8 +7,10 @@ subtitle:   spark学习笔记
 category:  project1
 visualworkflow: true
 ---
-## RDD 转换操作
+## RDD 操作
 
+- `parallelize[T](Seq: Seq[T], numSlices: Int = defaultParallelism)(implicit arg0: ClassTag[T]): RDD[T]`: 集群众每个CPU对应2~4个分片,Spark会根据集群情况自行设定分片数量.
+- `textFile(path: String, minPartition:Int = defaultMinPartitions): RDD[String]`: HDFS 默认块为64MB, 默认每个块一个分片, 分片数量不少于文件块数量.
 - map,filter,reduce etc.
 - `mapPartitions[U: ClassTag](f: Iterator[T] => Iterator[U], preservesPartitioning: Boolean = false): RDD[U]`
 - `mapPartitionsWithIndex`: f: (Int,Iterator[T]) => Iterator[U]
@@ -22,4 +24,13 @@ visualworkflow: true
 - `combineByKey[C](createCombiner: V => C, mergeValue: (C, V) => C, mergeCombiners: (C, C) => C, numPartitions: Int): RDD[(K, C)]`:createCombiner: 首次便利到K将V转换为C,mergeValue: 再碰到K将V聚合到C,mergeCombiners:最终聚合
 - `sortByKey([ascending], [numTask])`: ascending: 默认为 true,升序, 对(K, V) 类型按照K排序, K需要实现 Ordered 方法.
 - `join(otherDataset, [numTask])`:将数据集(K, V)和另一个数据集(K, W) 做笛卡尔积.
-- `cogroup(otherDataset,[numTask]): RDD[(K, Seq[V],Seq[W])]: 
+- `cogroup(otherDataset,[numTask]): RDD[(K, Seq[V],Seq[W])]`
+- `cartesian(otherDataset): RDD[(T, U)]`: 笛卡尔积
+- `pipe(command, [envVars])`: 以shell命令处理 RDD 数据
+- `randomSplit(weights: Array[Double], seed: Long = Utils.random.nextLong): Array[RDD[T]]`: 对RDD按照权重重新随机数据分割.
+- `subtract(otherDataset: RDD[T]): RDD[T]`: 减去other中包含元素.
+- `zip[U](other: RDD[U])(implicit arg0: ClassTag[U]): RDD[(T,U)]`: 还有 `zipWithIndex`, `zipParititions`.
+- `coalesce(numPartitions)` 重新分区,默认不 shuffle
+- `repartition` shuffle
+- `treeAggregate[U](zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U, depth: Int = 2)`:
+- `collect`: 集合中所有元素以数组形式返回;`count`:返回数据集中元素个数;`frist`返回数据集中第一个元素,类似take(1);`take(n)`返回一个包含数据集中前n个元素的数组,当前操作不能并行;`takeSample(withReplacement, num, [seed])` num 为取出个数,和Sample不同为返回数组;`takeOrdered(n, [ordering])`:返回包含随机n个元素的数组,按照顺序输出;`saveAsTextFile` 把数据集中写入到一个文本文件,自动对每个元素调用`toString`方法;`countByKey`:对于(K, V)类型RDD,返回一个(K, Int)的map;`foreach(func)`;
