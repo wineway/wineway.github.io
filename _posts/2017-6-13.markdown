@@ -1,0 +1,25 @@
+---
+layout:     post
+title:      "[笔记]Spark Mlib"
+author:     wineway
+tags: 		spark 未完成
+subtitle:   spark学习笔记
+category:  project1
+visualworkflow: true
+---
+## RDD 转换操作
+
+- map,filter,reduce etc.
+- `mapPartitions[U: ClassTag](f: Iterator[T] => Iterator[U], preservesPartitioning: Boolean = false): RDD[U]`
+- `mapPartitionsWithIndex`: f: (Int,Iterator[T]) => Iterator[U]
+- `sample(withReplacement, fraction, seed)`:withReplacement,是否放回抽样,seed,随机数种子,fraction,比例
+- `union(otherDataset)`:数据合并
+- `intersection(otherDataset)`:数据交集
+- `distinct([numTask])`:数据去重,numTask是任务并行数量;
+- `groupByKey([numTask])`:(K, V) -> (K, Seq[V])
+- `reduceByKey(func, [numTask])`: key 分组 func 聚合
+- `aggregateByKey(zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U)`: zeroValue:初始值,seqOp:将T 合并到 U,combOp: 合并两个U
+- `combineByKey[C](createCombiner: V => C, mergeValue: (C, V) => C, mergeCombiners: (C, C) => C, numPartitions: Int): RDD[(K, C)]`:createCombiner: 首次便利到K将V转换为C,mergeValue: 再碰到K将V聚合到C,mergeCombiners:最终聚合
+- `sortByKey([ascending], [numTask])`: ascending: 默认为 true,升序, 对(K, V) 类型按照K排序, K需要实现 Ordered 方法.
+- `join(otherDataset, [numTask])`:将数据集(K, V)和另一个数据集(K, W) 做笛卡尔积.
+- `cogroup(otherDataset,[numTask]): RDD[(K, Seq[V],Seq[W])]: 
