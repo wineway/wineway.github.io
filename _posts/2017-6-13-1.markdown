@@ -1,6 +1,6 @@
 ---
 layout:     post
-title:      "[笔记]Spark Mlib"
+title:      "[笔记]Spark MLlib"
 author:     wineway
 tags: 		spark 未完成
 subtitle:   spark学习笔记
@@ -34,3 +34,28 @@ visualworkflow: true
 - `repartition` shuffle
 - `treeAggregate[U](zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U, depth: Int = 2)`:
 - `collect`: 集合中所有元素以数组形式返回;`count`:返回数据集中元素个数;`frist`返回数据集中第一个元素,类似take(1);`take(n)`返回一个包含数据集中前n个元素的数组,当前操作不能并行;`takeSample(withReplacement, num, [seed])` num 为取出个数,和Sample不同为返回数组;`takeOrdered(n, [ordering])`:返回包含随机n个元素的数组,按照顺序输出;`saveAsTextFile` 把数据集中写入到一个文本文件,自动对每个元素调用`toString`方法;`countByKey`:对于(K, V)类型RDD,返回一个(K, Int)的map;`foreach(func)`;
+
+## MLlib Statistics 统计操作
+
+- `val S = Statistics.colStats(RDD[VVector])`
+  - `S.max`
+  - `S.min`
+  - `S.mean`
+  - `S.variance`
+  - `S.normL1`
+  - `S.normL2`
+- `val c = Statistics.corr(data, "pearson/spearman")` 相关系数
+- `val t = Statistics.chiSqTest(v1,v2)` 卡方检验
+
+## MLlib 数据格式
+
+- `MLUtils` :辅助加载保存处理MLlib相关算法所需要的数据
+  - `loadLibSVMFile(sc: SparkContext, path: String, numFeatures: Int, minPartition: Int)` : minPartition: 最小分区数
+  - `saveAsLibSVMFile(data: RDD[LabledPiont], dir: String)`
+  - `appendBias(vector: Vector): Vector`
+  - `fastSquaredDistance(v1: Vector, norm1: Double, v2 :Vector, norm2: Double, precision: Double = 1e-6): Double` :L2
+- `generateKMeansRDD(sc: SparkContext, numPoints: Int, k: Int, d: Int, r: Double, numPartitions: Int = 2): RDD[Array[Double]]`: r,初始中心分布缩放因子,也可以按照MLlib封装方法进行调用,格式为:`KMeansGenerator <master> <output_dir> <num_point> <k> <d> <r> [<num_partitions>]`: master,集群master地质
+- `generateLinearRDD(sc: Spark, nexamples: Int, nfeatures: Int, eps: Double, npart: Int = 2, intercept: Double = 0.0): RDD[LabledPiont]`: eps, epsilon因子; npart,RDD分区数
+- `generateLogisticRDD(sc: SparkContext, nexamples: Int, nfeatures: Int, eps: Double, nparts: Int = 2, probOne: Double = 0.5): RDD[LabeledPoint]`
+- `MFDataGenerator <master> <outputDir> [m] [n] [rank] [trainSampFact] [noise] [sigma] [test] [testSampFact]`
+- `SVMGenerator <master> <output_dir> [num_examples] [num_features] [num_partitions]`
