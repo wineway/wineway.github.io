@@ -1,0 +1,88 @@
+---
+layout:     post
+title:      "[家里有了一台服务器能用来作什么]1) 装个系统"
+author:     wineway
+tags: 		家里有了一台服务器能用来作什么
+subtitle:   装个arch及配置EFISTUB
+category:  project1
+visualworkflow: true
+---
+
+## 装个系统
+
+### 一些准备工作
+
+自用系统当然首选 `arch` 不解释，首先[清华大学开源软件镜像站](https://mirrors.tuna.tsinghua.edu.cn/archlinux/iso)随便挑个镜像（反正没区别）
+> 出于保护非盈利机构流量的目的的话（？）也可以选择aliyun，虽然他会给你限速
+
+`fdisk -l` 找到usb的device路径，然后
+
+```
+sudo dd if=archlinux-2017.iso of=/dev/sdb bs=1024k status=progress
+```
+烧录到u盘
+
+### 装系统的一些初始化工作
+
+如果服务器没有设置u盘启动的话需要设置下bios启动顺序，具体f几根据设备厂商不用也不一样，搜一下自己机器型号对应的按键吧……
+
+然后就跟随arch wiki上的[Installation guide](https://wiki.archlinux.org/title/Installation_guide)往下走就好
+
+简单来讲，就是按需分区（必要一个EFI分区，和root分区），然后mkfs（推荐xfs，貌似btrfs截止到2022-1-5依然有些buggy？）
+
+之后
+
+```
+mount /dev/root_partition /mnt
+# 为啥看下面
+mount /dev/efi_system_partition /mnt/esp
+mkdir /mnt/esp/EFI/arch
+mount -b /mnt/esp/EFI/arch /mnt/boot
+# 就是随便找个目录挂上efi分区，并且吧EFI/arch目录绑定到根分区的boot下，用来接同步下来的kernel
+```
+
+然后配置[EFISTUB](https://wiki.archlinux.org/title/EFISTUB)（至于why看链接）
+
+简单执行
+
+```
+efibootmgr --disk /dev/nvmen1X --part Y --create --label "Arch Linux" --loader /vmlinuz-linux --unicode 'root=PARTUUID=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX rw initrd=\initramfs-linux.img' --verbose
+```
+确认下生成的配置
+```
+efibootmgr --verbose
+```
+设置bootorder
+```
+efibootmgr --bootorder XXXX,XXXX --verbose
+```
+
+### 下面才开始正式装系统
+把`/etc/pacman.d/mirrorlist`修改成
+```
+# https://mirrors.tuna.tsinghua.edu.cn/help/archlinux/
+Server = https://mirrors.tuna.tsinghua.edu.cn/archlinux/$repo/os/$arch
+```
+安装kernel和一些基础包
+
+最后记得`arch-chroot /mnt`给`root`设置个密码
+
+然后reboot就可以用了～
+
+### 一些其他的问题
+
+arch官网guide里面的基础包里面不包含用于连接wifi的工具……
+如果需要连接wifi的话需要额外安装以下包
+```
+pacman -Sy iw wpa_supplicant
+# iw 是个无线网路设备的设置工具， 如果网络有WPA认证的话就额外需要wpa_supplicant用于认证
+# 要是需要dhcp的话还要加个dhcpcd
+```
+
+简单使用
+```
+wpa_supplicant -B -i interface -c <(wpa_passphrase MYSSID passphrase)
+```
+具体无线网路的设置看[这里](https://wiki.archlinux.org/title/Network_configuration/Wireless)
+
+
