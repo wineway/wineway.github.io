@@ -3,7 +3,7 @@ layout:     post
 title:      "[笔记]Yin Wang的40行代码"
 author:     wineway
 tags: 		Scheme  CPS 笔记 未完成
-subtitle:   王垠的40行代码解析
+subtitle:   王垠的40行代码解析未遂
 category:  project1
 visualworkflow: true
 ---
@@ -140,4 +140,3 @@ visualworkflow: true
 ((eval fact-cps) 5 (lambda (v) v))
 ;; => 120
 ```
-解析鸽了,有空添加注释,看lisp代码好头疼;(
