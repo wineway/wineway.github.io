@@ -1,8 +1,8 @@
 ---
 layout:     post
-title:      "给centos升个内核"
+title:      "给centos7升个内核"
 author:     wineway
-tags: 		给centos升个内核
+tags: 		给centos7升个内核
 subtitle:   升级一个内核
 category:  project1
 visualworkflow: true
@@ -31,7 +31,8 @@ sudo rpm -Uvh https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
 ```
 sudo cp /etc/yum.repos.d/elrepo.repo /etc/yum.repos.d/elrepo.repo.bak
 ```
-6. 然后编辑 `/etc/yum.repos.d/elrepo.repo` 文件，在 `mirrorlist=` 开头的行前面加 `#` 注释掉；并将 `elrepo.org/linux` 替换为 `mirrors.tuna.tsinghua.edu.cn/elrepo`
+6. 然后编辑 `/etc/yum.repos.d/elrepo.repo` 文件，在 `mirrorlist=` 开头的行前面加 `#` 注释掉；并将 `elrepo.org/linux` 替换为 `mirrors.tuna.tsinghua.edu.cn/elrepo`:
+
 ```
 sed -e '/^mirrorlist=/ s/^#*/#/' -i /etc/yum.repos.d/elrepo.repo
 
@@ -85,3 +86,6 @@ vim /etc/default/grub
 
 11. `systemctl reboot`
  
+> reference:
+> 1. [ELRepo 镜像使用帮助](https://mirrors.tuna.tsinghua.edu.cn/help/elrepo/)
+> 2. [How to Upgrade Linux Kernel in CentOS 7](https://phoenixnap.com/kb/how-to-upgrade-kernel-centos)
