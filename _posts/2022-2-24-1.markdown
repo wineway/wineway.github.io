@@ -31,10 +31,10 @@ sudo rpm -Uvh https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
 ```
 sudo cp /etc/yum.repos.d/elrepo.repo /etc/yum.repos.d/elrepo.repo.bak
 ```
-6. 替换清华源，编辑 `/etc/yum.repos.d/elrepo.repo` 文件，在 `mirrorlist=` 开头的行前面加 `#` 注释掉；并将 `elrepo.org/linux` 替换为 `mirrors.tuna.tsinghua.edu.cn/elrepo`:
+6. 替换清华源，编辑 `/etc/yum.repos.d/elrepo.repo` 文件，在 `mirrorlist=` 开头的行前面加 `#` 注释掉；并将 `elrepo.org/linux` 替换为 `mirrors.tuna.tsinghua.edu.cn/elrepo`
 ```
-sed -e '/^mirrorlist=/ s/^#*/#/' -i /etc/yum.repos.d/elrepo.repo
 
+sed -e '/^mirrorlist=/ s/^#*/#/' -i /etc/yum.repos.d/elrepo.repo
 sed -e 's/elrepo.org\/linux/mirrors.tuna.tsinghua.edu.cn\/elrepo/g' -i /etc/yum.repos.d/elrepo.repo
 ```
 7. 更新包缓存
@@ -75,6 +75,7 @@ yum --enablerepo=elrepo-kernel install kernel-ml
 ```
 10. 编辑grub（确认使用grub引导）:
 ```
+
 vim /etc/default/grub
 # GRUB_DEFAULT='CentOS Linux (5.16.11-1.el7.elrepo.x86_64) 7 (Core)'
 
