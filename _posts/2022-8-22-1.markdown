@@ -12,6 +12,7 @@ visualworkflow: true
 #### download software
 
 1. add the Intel repository public key
+
 ```
 wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
@@ -21,16 +22,23 @@ echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sourc
 ```
 
 2. update apt package list
+
 ```
 sudo apt update && sudo apt install intel-oneapi-vtune
 ```
 
 3.  it will be installed to path `/opt/intel/oneapi/vtune` if user is `root`
 
+
 #### setup `webui` 
+
+
 1. `/opt/intel/oneapi/vtune/latest/bin64/vtune-backend --data-directory=/tmp --no-https --allow-remote-access --reset-passphrase` and maybe you need disable `csrf` by commented related code.
 
+
 #### login and add mechine
+
+
 1. generate a `sshkey` and add to self `authorized_keys`, and use this key to add localhost node on webUI and install vtune-agent.
 
 #### run some self check
@@ -38,6 +46,8 @@ sudo apt update && sudo apt install intel-oneapi-vtune
 `${VTUNE_PATH}/latest/bin64/vtune-self-checker.sh`
 
 example output:
+
+
 ```
 Intel(R) VTune(TM) Profiler Self Check Utility
 Copyright (C) 2009 Intel Corporation. All rights reserved.
@@ -108,16 +118,24 @@ The following analyses have failed on the system:
 ```
 
 #### prepare
+
+
 1. `echo 0 > /proc/sys/kernel/yama/ptrace_scope`
+
+
 2. if we need attach the process inside docker, make sure run it privileged.
 
 #### config diverless colloction(due to hypervisor doesn't enable vPMU feature) : failed
 
+
 1. ensure `/proc/sys/kernel/perf_event_paranoid` is less than 1 to enable system-wide collection
+
 
 #### ask vm supplier to enable vPMU feature: done
 
 #### some attr explaination
+
+
 1. retired: uops leaves `retirement unit` means executed and result is visible and correct.
 > counter diff with instructions started execution in OOO pipeline show how much useless work do by CPU
 
