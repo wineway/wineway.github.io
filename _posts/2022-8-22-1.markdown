@@ -1,0 +1,160 @@
+---
+layout:     post
+title:      "intel vtune profiler installation and guide"
+author:     wineway
+tags:       vtune
+subtitle:   instruction of usage
+category:  project1
+visualworkflow: true
+---
+
+### intel vtune profiler
+#### download software
+
+1. add the Intel repository public key
+```
+wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+```
+
+2. update apt package list
+```
+sudo apt update && sudo apt install intel-oneapi-vtune
+```
+
+3.  it will be installed to path `/opt/intel/oneapi/vtune` if user is `root`
+
+#### setup `webui` 
+1. `/opt/intel/oneapi/vtune/latest/bin64/vtune-backend --data-directory=/tmp --no-https --allow-remote-access --reset-passphrase` and maybe you need disable `csrf` by commented related code.
+
+#### login and add mechine
+1. generate a `sshkey` and add to self `authorized_keys`, and use this key to add localhost node on webUI and install vtune-agent.
+
+#### run some self check
+
+`${VTUNE_PATH}/latest/bin64/vtune-self-checker.sh`
+
+example output:
+```
+Intel(R) VTune(TM) Profiler Self Check Utility
+Copyright (C) 2009 Intel Corporation. All rights reserved.
+Build Number: 624050
+
+HW event-based analysis (counting mode)
+Example of analysis types: Performance Snapshot
+    Collection: Ok
+    Finalization: Ok...
+    Report: Ok
+
+Instrumentation based analysis check
+Example of analysis types: Hotspots and Threading with user-mode sampling
+    Collection: Ok
+vtune: Warning: Microarchitecture performance insights will not be available. Make sure the sampling driver is installed and enabled on your system.
+    Finalization: Ok...
+    Report: Ok
+
+HW event-based analysis check
+Example of analysis types: Hotspots with HW event-based sampling, HPC Performance Characterization, etc.
+    Collection: Fail
+vtune: Error: Cannot enable event-based sampling collection: Architectural Performance Monitoring version is 0. Make sure the vPMU feature is enabled in your hypervisor.
+
+HW event-based analysis check
+Example of analysis types: Microarchitecture Exploration
+    Collection: Fail
+vtune: Error: Cannot enable event-based sampling collection: Architectural Performance Monitoring version is 0. Make sure the vPMU feature is enabled in your hypervisor.
+vtune: Warning: CPU frequency data collection is not supported on this platform.
+
+HW event-based analysis with uncore events
+Example of analysis types: Memory Access
+    Collection: Fail
+vtune: Error: Memory Access analysis is not supported inside a virtual machine since uncore events cannot be collected. For full functionality, consider using a bare-metal environment.
+vtune: Error: Cannot enable event-based sampling collection: Architectural Performance Monitoring version is 0. Make sure the vPMU feature is enabled in your hypervisor.
+
+HW event-based analysis with stacks
+Example of analysis types: Hotspots with HW event-based sampling and call stacks
+    Collection: Fail
+vtune: Error: Cannot enable event-based sampling collection: Architectural Performance Monitoring version is 0. Make sure the vPMU feature is enabled in your hypervisor.
+
+HW event-based analysis with context switches
+Example of analysis types: Threading with HW event-based sampling
+    Collection: Fail
+vtune: Error: Cannot enable event-based sampling collection: Architectural Performance Monitoring version is 0. Make sure the vPMU feature is enabled in your hypervisor.
+vtune: Warning: CPU frequency data collection is not supported on this platform.
+
+Checking DPC++ application as prerequisite for GPU analyses: Fail
+Unable to run DPC++ application on GPU connected to this system. If you are using an Intel GPU and want to verify profiling support for DPC++ applications, check these requirements:
+* Install Intel(R) GPU driver.
+* Install Intel(R) Level Zero GPU runtime.
+* Install Intel(R) oneAPI DPC++ Runtime and set the environment.
+
+The check observed a product failure on your system.
+Review errors in the output above to fix a problem or contact Intel technical support.
+
+The system is ready for the following analyses:
+* Performance Snapshot
+* Hotspots and Threading with user-mode sampling
+
+The following analyses have failed on the system:
+* Hotspots with HW event-based sampling, HPC Performance Characterization, etc.
+* Microarchitecture Exploration
+* Memory Access
+* Hotspots with HW event-based sampling and call stacks
+* Threading with HW event-based sampling
+* GPU Compute/Media Hotspots (characterization mode)
+* GPU Compute/Media Hotspots (source analysis mode)
+```
+
+#### prepare
+1. `echo 0 > /proc/sys/kernel/yama/ptrace_scope`
+2. if we need attach the process inside docker, make sure run it privileged.
+
+#### config diverless colloction(due to hypervisor doesn't enable vPMU feature) : failed
+
+1. ensure `/proc/sys/kernel/perf_event_paranoid` is less than 1 to enable system-wide collection
+
+#### ask vm supplier to enable vPMU feature: done
+
+#### some attr explaination
+1. retired: uops leaves `retirement unit` means executed and result is visible and correct.
+> counter diff with instructions started execution in OOO pipeline show how much useless work do by CPU
+
+2. memory bound: execution starvation caused pipline back-pressure due to cache/dram load/store
+
+3. retiring: rate of uops can be retired.
+
+4. CPI: Cycles per Instruction Retired.
+
+5. Front-End: fetching operations that are executed later on by the Back-End part. branch predictor predicts the addr of the next instrution to fetch from memory-subsys. and parsed into instructions.
+   - latency: CPU was stalled by *instruction-cache misses*, *ITLB misses*, *fetch stalls after a branch misprediction*, In such cases, the front-end delivers no uOps.
+     - ICache misses: L1I instruction cache miss.
+     - ITLB overhead.
+     - branch resteers: ?: branch reorder due to branch prediction failure.
+       - mispredicts resteers.
+       - clears resteers: branch resteers caused by Machine Clears.
+       - unknown branches: prediction unit was unable to recognize(First fetch or hitting BPU capacity limit)
+    - DSB switch: Decoded Stream Buffer, seems avoid enter MITE(Micro-instruction Translation Engine)
+    - Length Changing Prefixes: 
+    - MS switches: switch from uops delivery to `Microcode Sequencer`
+   - bandwidth:
+     - bandwidth due to MITE fetch pipline issue.
+     - DSB(decoded uop cache?)
+     - LSD(Loop Stream Detector)
+
+6. bad speculation: 1) branch misprediction 2) Mechine clears: Certain events require the entire pipeline to be cleared and restarted from just after the last retired instruction. 
+
+7. Back-End
+  - memory
+    - L1: 1) DTLB overhead(first-level data tlb) 2) Load Blocked by Store Forwarding. when the prior store is writing a smaller region than the load is reading, the load is blocked for a signficant time pending the store forward. 3) Lock Latency 4) Split Load, data moves at cache line granularity - 64 bytes per line. 5) 4k alias 6) FB Full, Often it hints on approaching bandwidth limits (to L2 cache, L3 cache or external memory).
+    - L2
+    - L3: 1) SQ Latency 2) SQ Full
+    - DRAM: bandwidth/latency(local/remote)
+    - Store
+  - core
+    - divider: DIV take considerably longer than other operation
+    - port utilization:
+
+
+
